@@ -1,0 +1,6 @@
+coverage/
+dist/
+node_modules/
+.issue-fix/
+package-lock.json
+evals/fixtures/

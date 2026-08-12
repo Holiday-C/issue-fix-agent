@@ -1,0 +1,79 @@
+name: Agent task
+description: A scoped, testable change suitable for autonomous implementation
+title: ""
+labels: ["agent-ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write this task as an executable contract. The implementing agent should not need to invent product requirements.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong or missing, and who is affected?
+      placeholder: Describe current behavior and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that must all be true.
+      placeholder: |
+        - [ ] Given ..., when ..., then ...
+        - [ ] Existing ... behavior remains unchanged
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant context
+      description: Link code, ADRs, errors, examples, or prior discussion.
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and sensitive areas
+      description: Which paths may change? Which paths or behaviors must not change?
+      placeholder: |
+        Allowed: src/tools/**, tests/unit/**
+        Do not change: public task schema, network policy
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Commands or evidence that demonstrate completion.
+      placeholder: |
+        npm run verify
+        Add a regression test for ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: Closely related work intentionally excluded from this Issue.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: authority
+    attributes:
+      label: Required authority
+      description: Choose the highest level of access this task should require.
+      options:
+        - Repository read/write only
+        - Network access required
+        - Destructive or external write requires human approval
+    validations:
+      required: true

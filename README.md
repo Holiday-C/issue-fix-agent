@@ -6,7 +6,27 @@
 
 > 给定一个描述清楚的 Issue，Agent 能否产出一份通过自动化检查、方便人工审查的候选修复？
 
-项目目前处于设计阶段。第一版将使用 TypeScript 实现，核心保持为一个直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
+项目目前处于 Milestone 0。工程骨架与最小 Agent Loop 已建立，实际仓库工具、Anthropic 适配器和隔离执行能力仍在开发中。第一版使用 TypeScript 实现，核心保持为一个直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
+
+## 快速开始
+
+要求 Node.js 22 和 npm 10：
+
+```bash
+npm ci
+npm run verify
+npm run dev -- --help
+```
+
+当前 CLI 只提供帮助和版本信息；在安全边界和工具实现完成前，它不会接受真实修复任务。
+
+项目的工程约定在以下文档中：
+
+- [`AGENTS.md`](./AGENTS.md)：所有编码 Agent 必须遵守的仓库指令
+- [`docs/architecture.md`](./docs/architecture.md)：模块边界、运行流程和安全不变量
+- [`docs/decisions/`](./docs/decisions/)：架构决策记录
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md)：Issue、分支、Commit 和 PR 规范
+- [`SECURITY.md`](./SECURITY.md)：安全问题报告方式
 
 ## 为什么做这个项目
 
@@ -144,14 +164,14 @@ limits:
 
 MVP 只提供少量、高质量工具：
 
-| 工具 | 作用 | 默认权限 |
-| --- | --- | --- |
-| `list_files` | 查看有限深度的目录结构 | 只读、自动允许 |
-| `search_code` | 按文本或模式搜索代码 | 只读、自动允许 |
-| `read_file` | 分段读取文件 | 只读、自动允许 |
+| 工具          | 作用                      | 默认权限                 |
+| ------------- | ------------------------- | ------------------------ |
+| `list_files`  | 查看有限深度的目录结构    | 只读、自动允许           |
+| `search_code` | 按文本或模式搜索代码      | 只读、自动允许           |
+| `read_file`   | 分段读取文件              | 只读、自动允许           |
 | `apply_patch` | 以可审查的 patch 修改文件 | 仅限 worktree 和允许路径 |
-| `run_command` | 执行测试和项目命令 | 受 allowlist 与沙箱限制 |
-| `git_diff` | 获取当前改动及统计信息 | 只读、自动允许 |
+| `run_command` | 执行测试和项目命令        | 受 allowlist 与沙箱限制  |
+| `git_diff`    | 获取当前改动及统计信息    | 只读、自动允许           |
 
 工具应该返回紧凑、结构化、可操作的结果。超长输出必须截断并提供继续读取的方法，避免一次工具调用污染整个上下文。
 
@@ -189,10 +209,13 @@ return stopWithReport("budget_exhausted");
 
 生产版本需要处理 streaming、中断、无效参数、工具异常、输出截断、上下文压缩和恢复，但这些能力都围绕同一个循环逐步增加。
 
-## 计划中的目录结构
+## 代码结构
 
 ```text
 issue-fix-agent/
+├── .github/           # CI、安全扫描、Issue 与 PR 模板
+├── docs/
+│   └── decisions/     # Architecture Decision Records
 ├── src/
 │   ├── agent/          # Agent loop、上下文和停止条件
 │   ├── model/          # 模型接口与 Anthropic 适配器
@@ -206,7 +229,10 @@ issue-fix-agent/
 │   ├── fixtures/       # 可重复运行的小型仓库
 │   └── tasks/          # 固定 Issue 评测集
 ├── tests/
-└── examples/
+│   └── unit/           # 确定性单元测试
+├── examples/
+├── AGENTS.md           # AI 开发协议
+└── CONTRIBUTING.md     # Git 与协作规范
 ```
 
 模块边界服务于测试和替换，不追求提前抽象。只有出现第二个真实实现时，才提取通用接口。
@@ -277,11 +303,11 @@ LLM 输出始终被视为不可信输入。任何工具调用在执行之前都�
 
 ### Milestone 0：最小闭环
 
-- [ ] 初始化 TypeScript CLI
+- [x] 初始化 TypeScript CLI
 - [ ] 接入 Anthropic Messages API
 - [ ] 实现 `read_file`、`search_code`、`apply_patch`、`run_command`
-- [ ] 实现单 Agent 工具循环
-- [ ] 保存完整 JSONL trace
+- [x] 实现单 Agent 工具循环骨架
+- [ ] 保存完整 JSONL trace（当前只有 Trace 接口）
 - [ ] 使用一个 fixture repository 完成首个 Issue
 
 ### Milestone 1：可信执行
