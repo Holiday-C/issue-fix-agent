@@ -2,6 +2,7 @@
   "name": "issue-fix-agent",
   "version": "0.1.0",
   "description": "A small, evaluable coding agent that turns scoped issues into verified candidate patches.",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "bin": {
