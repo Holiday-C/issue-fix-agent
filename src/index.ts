@@ -9,13 +9,6 @@ export type {
   ToolDefinition,
   ToolUseBlock,
 } from "./model/types.js";
-export {
-  type PathDecision,
-  type PathDenialReason,
-  type PathOperation,
-  PathPolicy,
-  PathPolicyConfigurationError,
-} from "./permissions/path-policy.js";
 export { ToolRegistry } from "./tools/tool-registry.js";
 export type { ToolExecutor, ToolRegistryPort, ToolResult } from "./tools/types.js";
 export { NoopTraceSink, type TraceEvent, type TraceSink } from "./trace/types.js";
