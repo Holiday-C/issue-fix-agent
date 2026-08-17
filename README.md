@@ -149,9 +149,12 @@ allowed_paths:
   - tests/users/**
 
 verification:
-  - npm run lint
-  - npm run typecheck
-  - npm test -- users
+  - executable: npm
+    args: [run, lint]
+  - executable: npm
+    args: [run, typecheck]
+  - executable: npm
+    args: [test, --, users]
 
 limits:
   max_iterations: 8
