@@ -12,3 +12,10 @@ export type {
 export { ToolRegistry } from "./tools/tool-registry.js";
 export type { ToolExecutor, ToolRegistryPort, ToolResult } from "./tools/types.js";
 export { NoopTraceSink, type TraceEvent, type TraceSink } from "./trace/types.js";
+export {
+  createIsolatedWorktree,
+  type CreateIsolatedWorktreeOptions,
+  type IsolatedWorktree,
+  WorkspaceError,
+  type WorkspaceErrorCode,
+} from "./workspace/git-worktree.js";
