@@ -11,7 +11,10 @@ repository, "pull request" (PR) is the equivalent of "merge request" (MR).
 - Every change, including documentation and CI changes, goes through a PR.
 - Only the repository owner, `Holiday-C`, merges PRs into `main`.
 - Force pushes and deletion of `main` are forbidden.
-- Required CI checks and unresolved review conversations block merging.
+- Unresolved review conversations block merging.
+
+Verification runs locally and its evidence is recorded in the PR. The repository
+does not currently run GitHub Actions.
 
 Repository ownership is the human approval boundary. Agents may prepare a
 branch, commits, verification evidence, and a PR description, but must not merge
@@ -99,18 +102,15 @@ branch unless it is still needed for an explicitly documented follow-up.
 The repository must keep an active branch ruleset targeting the default branch
 with these controls:
 
-- restrict updates and deletion;
+- restrict deletion;
 - require a pull request before merging;
-- require the repository CI status checks;
 - require all review conversations to be resolved;
 - require linear history;
-- block force pushes;
-- give only the GitHub user `Holiday-C` bypass permission, set to **For pull
-  requests only**.
+- block force pushes.
 
-The PR-only bypass mode makes `Holiday-C` the only merge authority without
-allowing a direct push to `main`. The owner should not bypass failed checks
-except for an explicitly documented recovery action.
+`Holiday-C` is currently the repository's only collaborator and therefore the
+only actor able to merge. Revisit merge authority before granting write access
+to another collaborator.
 
 Do not enable GitHub's **Lock branch** option: it makes the branch read-only and
 would prevent normal PR merges as well.
