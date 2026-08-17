@@ -102,17 +102,15 @@ branch unless it is still needed for an explicitly documented follow-up.
 The repository must keep an active branch ruleset targeting the default branch
 with these controls:
 
-- restrict updates and deletion;
+- restrict deletion;
 - require a pull request before merging;
 - require all review conversations to be resolved;
 - require linear history;
-- block force pushes;
-- give only the GitHub user `Holiday-C` bypass permission, set to **For pull
-  requests only**.
+- block force pushes.
 
-The PR-only bypass mode makes `Holiday-C` the only merge authority without
-allowing a direct push to `main`. The owner should not bypass failed checks
-except for an explicitly documented recovery action.
+`Holiday-C` is currently the repository's only collaborator and therefore the
+only actor able to merge. Revisit merge authority before granting write access
+to another collaborator.
 
 Do not enable GitHub's **Lock branch** option: it makes the branch read-only and
 would prevent normal PR merges as well.
