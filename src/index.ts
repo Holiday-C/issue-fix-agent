@@ -9,16 +9,6 @@ export type {
   ToolDefinition,
   ToolUseBlock,
 } from "./model/types.js";
-export {
-  parseTaskContract,
-  SAFE_TASK_LIMITS,
-  TaskContractError,
-  type TaskContractErrorCode,
-  type TaskContractIssue,
-  type TaskContract,
-  type TaskLimits,
-  type VerificationCommand,
-} from "./task/task-contract.js";
 export { ToolRegistry } from "./tools/tool-registry.js";
 export type { ToolExecutor, ToolRegistryPort, ToolResult } from "./tools/types.js";
 export { NoopTraceSink, type TraceEvent, type TraceSink } from "./trace/types.js";
