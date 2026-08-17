@@ -11,7 +11,10 @@ repository, "pull request" (PR) is the equivalent of "merge request" (MR).
 - Every change, including documentation and CI changes, goes through a PR.
 - Only the repository owner, `Holiday-C`, merges PRs into `main`.
 - Force pushes and deletion of `main` are forbidden.
-- Required CI checks and unresolved review conversations block merging.
+- Unresolved review conversations block merging.
+
+Verification runs locally and its evidence is recorded in the PR. The repository
+does not currently run GitHub Actions.
 
 Repository ownership is the human approval boundary. Agents may prepare a
 branch, commits, verification evidence, and a PR description, but must not merge
@@ -101,7 +104,6 @@ with these controls:
 
 - restrict updates and deletion;
 - require a pull request before merging;
-- require the repository CI status checks;
 - require all review conversations to be resolved;
 - require linear history;
 - block force pushes;

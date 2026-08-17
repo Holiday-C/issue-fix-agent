@@ -214,7 +214,7 @@ return stopWithReport("budget_exhausted");
 
 ```text
 issue-fix-agent/
-├── .github/           # CI、安全扫描、Issue 与 PR 模板
+├── .github/           # Issue 与 PR 模板
 ├── docs/
 │   ├── decisions/     # Architecture Decision Records
 │   └── development/   # 日常工程与协作流程
