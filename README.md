@@ -25,6 +25,7 @@ npm run dev -- --help
 - [`AGENTS.md`](./AGENTS.md)：所有编码 Agent 必须遵守的仓库指令
 - [`docs/architecture.md`](./docs/architecture.md)：模块边界、运行流程和安全不变量
 - [`docs/decisions/`](./docs/decisions/)：架构决策记录
+- [`docs/development/`](./docs/development/)：Git、测试与日常开发流程
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md)：Issue、分支、Commit 和 PR 规范
 - [`SECURITY.md`](./SECURITY.md)：安全问题报告方式
 
@@ -215,7 +216,8 @@ return stopWithReport("budget_exhausted");
 issue-fix-agent/
 ├── .github/           # CI、安全扫描、Issue 与 PR 模板
 ├── docs/
-│   └── decisions/     # Architecture Decision Records
+│   ├── decisions/     # Architecture Decision Records
+│   └── development/   # 日常工程与协作流程
 ├── src/
 │   ├── agent/          # Agent loop、上下文和停止条件
 │   ├── model/          # 模型接口与 Anthropic 适配器

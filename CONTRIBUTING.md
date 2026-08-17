@@ -17,6 +17,10 @@ npm run verify
 
 Use `npm run dev -- --help` while developing the CLI.
 
+The canonical branch, commit, pull-request, and merge rules are in
+[`docs/development/git-workflow.md`](./docs/development/git-workflow.md). Read
+that guide before starting a change.
+
 ## Start with an Issue
 
 Every non-trivial change should have an Issue containing:
@@ -29,64 +33,19 @@ Every non-trivial change should have an Issue containing:
 
 Use the **Agent task** Issue template for work intended to be completed autonomously.
 
-## Branches
+## Branches, Commits, and Pull Requests
 
-Use short, lowercase branch names:
-
-```text
-feat/42-command-policy
-fix/81-output-truncation
-docs/architecture-boundaries
-chore/update-tooling
-```
-
-Create branches from an up-to-date `main`. Do not mix unrelated changes in one branch.
-
-## Commits
-
-Use Conventional Commits:
-
-```text
-<type>(<optional-scope>): <imperative summary>
-```
-
-Supported types:
-
-| Type       | Use                              |
-| ---------- | -------------------------------- |
-| `feat`     | User-visible capability          |
-| `fix`      | Defect correction                |
-| `docs`     | Documentation only               |
-| `test`     | Tests and fixtures only          |
-| `refactor` | Behavior-preserving code change  |
-| `perf`     | Measured performance improvement |
-| `build`    | Build system or dependencies     |
-| `ci`       | Continuous integration           |
-| `chore`    | Repository maintenance           |
-| `revert`   | Revert of an earlier commit      |
-
-Examples:
-
-```text
-feat(tools): add bounded file reader
-fix(permissions): reject paths outside worktree
-test(agent): cover budget exhaustion
-docs: record command execution decision
-```
-
-The summary is lowercase, imperative, has no trailing period, and should fit within 72 characters where practical. Use the body to explain motivation, trade-offs, and migration notes. Use `BREAKING CHANGE:` in the footer for incompatible behavior.
-
-## Pull Requests
-
-- Keep the diff focused and reviewable.
-- Use a Conventional Commit formatted PR title.
-- Link the Issue with `Closes #<number>` when applicable.
+- Never work directly on `main`; create a new branch for every change.
+- Use Conventional Commits for commit messages and PR titles.
+- Keep each branch and PR focused on one independently reviewable purpose.
 - Complete the verification and risk sections in the PR template.
-- Include tests for behavioral changes.
-- Add or update an ADR when changing an architectural invariant.
-- Never include API keys, repository secrets, model transcripts containing secrets, or generated run data.
+- Include tests for behavioral changes and an ADR for architectural changes.
+- Never include API keys, repository secrets, sensitive model transcripts, or
+  generated run data.
+- Only the repository owner, `Holiday-C`, may merge into `main`.
 
-The preferred merge method is **squash merge**. The PR title becomes the commit subject on `main`.
+The detailed rules, examples, and protected-branch policy live in the
+[Git and Pull Request Workflow](./docs/development/git-workflow.md).
 
 ## Review Priorities
 

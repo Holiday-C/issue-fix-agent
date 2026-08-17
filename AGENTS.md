@@ -6,14 +6,28 @@ These instructions apply to the entire repository.
 
 ## Read First
 
-Before changing code, read:
+Before changing code, always read:
 
 1. `README.md` for product scope and principles.
 2. `docs/architecture.md` for module boundaries and runtime flow.
-3. Relevant ADRs in `docs/decisions/`.
-4. `CONTRIBUTING.md` for Git and pull-request conventions.
 
-If these documents disagree, prefer the most specific ADR, then `docs/architecture.md`, then `README.md`. Report the conflict instead of silently choosing when it affects behavior or safety.
+Then load only the guidance relevant to the task:
+
+| When the task involves                         | Read                                    |
+| ---------------------------------------------- | --------------------------------------- |
+| Architecture or a cross-module design choice   | Relevant ADRs in `docs/decisions/`      |
+| Branches, commits, PRs, or repository workflow | `docs/development/git-workflow.md`      |
+| Finding other development procedures           | `docs/development/README.md`            |
+| Security-sensitive behavior                    | `SECURITY.md` and relevant architecture |
+
+Do not load every repository document by default. Follow references when the
+current task needs them, and keep new repeatable engineering procedures under
+`docs/development/`.
+
+If documents disagree on architecture, prefer the most specific ADR, then
+`docs/architecture.md`, then `README.md`. For operational workflow, prefer the
+most specific guide in `docs/development/`. Report conflicts instead of silently
+choosing when they affect behavior or safety.
 
 ## Required Workflow
 
@@ -75,12 +89,11 @@ Dependencies must point toward contracts and the agent core. Provider SDK types 
 
 ## Git Rules
 
-- Use Conventional Commits: `type(scope): imperative summary`.
-- Keep commits single-purpose and independently verifiable.
+- Follow `docs/development/git-workflow.md` for branch, commit, PR, and merge
+  rules whenever the task touches Git history or collaboration workflow.
+- Never work directly on `main`; create a new branch for every change.
 - Do not rewrite unrelated user changes.
-- Do not amend, force-push, or rebase shared history unless explicitly requested.
-- Do not add AI co-author trailers automatically.
-- PR titles must use the same Conventional Commit format because squash merges use the PR title.
+- Agents must not merge PRs. Only the repository owner may merge into `main`.
 
 ## Definition of Done
 
