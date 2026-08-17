@@ -57,6 +57,8 @@ Dependencies must point toward contracts and the agent core. Provider SDK types 
 
 ## Engineering Rules
 
+- Keep every change simple and minimal. Use the cleanest, most elegant
+  architecture that fully achieves the goal without unnecessary scope.
 - Use TypeScript strict mode and native ESM.
 - Include `.js` extensions in relative TypeScript imports because output runs directly in Node.js ESM.
 - Prefer immutable values, explicit return types at public boundaries, and small pure functions.
