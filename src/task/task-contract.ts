@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { parseDocument } from "yaml";
 
-const MAX_TASK_SOURCE_BYTES = 1_000_000;
+export const MAX_TASK_SOURCE_BYTES = 1_000_000;
 
 export const SAFE_TASK_LIMITS = Object.freeze({
   maxIterations: 100,
