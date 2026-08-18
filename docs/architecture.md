@@ -82,7 +82,7 @@ Owns target-repository discovery, worktree creation, canonical path resolution, 
 
 ### `src/verification/`
 
-Runs task-configured checks after the model stops, independently of the model's claims. It returns structured command results and an overall verdict.
+Runs task-configured checks after the model stops, independently of the model's claims. Each check is authorized, executed serially through the process port, and normalized into a bounded result. Only a complete set of passing checks produces a successful verdict.
 
 ### `src/trace/`
 

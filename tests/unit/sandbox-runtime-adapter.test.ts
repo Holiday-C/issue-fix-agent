@@ -4,7 +4,11 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CommandPolicy } from "../../src/permissions/command-policy.js";
+import { PathPolicy } from "../../src/permissions/path-policy.js";
 import { SandboxRuntimeAdapter } from "../../src/process/sandbox-runtime-adapter.js";
+import type { TaskContract } from "../../src/task/task-contract.js";
+import { runVerification } from "../../src/verification/verification-runner.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -156,6 +160,50 @@ try { readdirSync(${JSON.stringify(homedir())}); process.exit(0); } catch { proc
 
       expect(timedOut.outcome).toBe("timed_out");
       expect(cancelled.outcome).toBe("cancelled");
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it("runs an authorized verification through the real process boundary", async () => {
+    const root = await createTemporaryDirectory("issue-fix-verification-worktree-");
+    await writeFile(
+      join(root, "fixture.test.mjs"),
+      "import assert from 'node:assert/strict'; import test from 'node:test'; test('fixture', () => assert.equal(2 + 2, 4));\n",
+      "utf8",
+    );
+    const task: TaskContract = Object.freeze({
+      title: "Fixture verification",
+      description: "Run a deterministic test.",
+      acceptanceCriteria: Object.freeze(["Test passes"]),
+      allowedPaths: Object.freeze(["**"]),
+      verification: Object.freeze([
+        Object.freeze({
+          executable: "node",
+          args: Object.freeze(["--test", "fixture.test.mjs"]),
+        }),
+      ]),
+      limits: Object.freeze({ maxIterations: 1, maxChangedFiles: 1, timeoutMinutes: 1 }),
+    });
+    const pathPolicy = await PathPolicy.create(root, task.allowedPaths);
+    const commands = new CommandPolicy(pathPolicy, [
+      { executable: "node", args: ["--test", "fixture.test.mjs"] },
+    ]);
+    const adapter = await SandboxRuntimeAdapter.create(root);
+
+    try {
+      await expect(
+        runVerification({
+          task,
+          worktreeRoot: pathPolicy.worktreeRoot,
+          commands,
+          process: adapter,
+        }),
+      ).resolves.toMatchObject({
+        verdict: "passed",
+        completedAllChecks: true,
+        checks: [{ status: "passed", exitCode: 0 }],
+      });
     } finally {
       await adapter.close();
     }
