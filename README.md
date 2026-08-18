@@ -6,7 +6,7 @@
 
 > 给定一个描述清楚的 Issue，Agent 能否产出一份通过自动化检查、方便人工审查的候选修复？
 
-项目目前处于 Milestone 0。工程骨架与最小 Agent Loop 已建立，实际仓库工具、Anthropic 适配器和隔离执行能力仍在开发中。第一版使用 TypeScript 实现，核心保持为一个直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
+Milestone 0（Agent Kernel）和 Milestone 1（Safe Workspace）已经完成，下一阶段是 Milestone 2（Deterministic Repair）。现有代码可以验证 YAML task contract、准备隔离 Git worktree 并组装 canonical path policy，但尚未实现仓库文件工具、验证执行器或真实模型适配。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
 
 ## 快速开始
 
@@ -30,6 +30,7 @@ npm run dev -- prepare --repo ../example-project --issue ./issues/task.yaml
 
 - [`AGENTS.md`](./AGENTS.md)：所有编码 Agent 必须遵守的仓库指令
 - [`docs/architecture.md`](./docs/architecture.md)：模块边界、运行流程和安全不变量
+- [`docs/roadmap.md`](./docs/roadmap.md)：产品里程碑、范围和退出标准
 - [`docs/decisions/`](./docs/decisions/)：架构决策记录
 - [`docs/development/`](./docs/development/)：Git、测试与日常开发流程
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md)：Issue、分支、Commit 和 PR 规范
@@ -312,46 +313,16 @@ LLM 输出始终被视为不可信输入。任何工具调用在执行之前都�
 
 ## 开发路线
 
-### Milestone 0：最小闭环
+| Milestone                       | 状态   | 可验证结果                                         |
+| ------------------------------- | ------ | -------------------------------------------------- |
+| M0 — Agent Kernel               | 完成   | Fake model 可以驱动最小工具循环并确定性停止        |
+| M1 — Safe Workspace             | 完成   | 仓库和任务被验证，并生成安全的隔离执行上下文       |
+| M2 — Deterministic Repair       | 下一步 | Scripted model 在 fixture 中完成一次验证通过的修复 |
+| M3 — Real Model MVP             | 计划中 | Anthropic 驱动第一个可用的本地候选修复             |
+| M4 — Evaluation and Reliability | 计划中 | 10 个固定任务形成成功率、安全和成本基线            |
+| M5 — Dogfooding                 | 计划中 | 连续 3 个真实小型修复通过人工审查                  |
 
-- [x] 初始化 TypeScript CLI
-- [ ] 接入 Anthropic Messages API
-- [ ] 实现 `read_file`、`search_code`、`apply_patch`、`run_command`
-- [x] 实现单 Agent 工具循环骨架
-- [ ] 保存完整 JSONL trace（当前只有 Trace 接口）
-- [ ] 使用一个 fixture repository 完成首个 Issue
-
-### Milestone 1：可信执行
-
-- [ ] Git worktree 隔离
-- [ ] 路径与命令权限策略
-- [ ] Zod 工具参数校验
-- [ ] 轮次、时间和 token 预算
-- [ ] 验证结果与最终报告
-- [ ] 中断和失败处理
-
-### Milestone 2：上下文工程
-
-- [ ] 仓库指令文件
-- [ ] 大文件分段读取
-- [ ] 工具输出截断
-- [ ] 上下文压缩
-- [ ] 会话恢复
-
-### Milestone 3：评测驱动开发
-
-- [ ] 建立 10～20 个固定 Issue
-- [ ] 自动运行评测集
-- [ ] 生成成功率和成本报告
-- [ ] 对失败原因分类
-- [ ] 使用回归评测约束 Prompt 和工具修改
-
-### Milestone 4：真实仓库与自举
-
-- [ ] 支持从 GitHub Issue 读取任务
-- [ ] 生成候选分支和 PR 描述
-- [ ] 在一个真实项目中连续完成小型 Issue
-- [ ] 让 Agent 尝试实现本仓库中带 `agent-ready` 标签的 Issue
+详细范围、非目标和退出标准见 [`docs/roadmap.md`](./docs/roadmap.md)。M1 的 4 个 Issues 已完成，归档见 [M1 — Safe Workspace](https://github.com/Holiday-C/issue-fix-agent/milestone/1)。
 
 ## 有意推迟的能力
 
