@@ -30,6 +30,7 @@
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
+    "@anthropic-ai/sandbox-runtime": "0.0.73",
     "@anthropic-ai/sdk": "0.114.0",
     "yaml": "2.9.0",
     "zod": "4.1.5"
