@@ -18,7 +18,13 @@ npm run verify
 npm run dev -- --help
 ```
 
-当前 CLI 只提供帮助和版本信息；在安全边界和工具实现完成前，它不会接受真实修复任务。
+当前 CLI 提供帮助、版本信息和只读的 `prepare` 命令。`prepare` 会验证 YAML task contract、创建并清理隔离 worktree、组装路径策略，但不会调用模型或执行 task 中的命令：
+
+```bash
+npm run dev -- prepare --repo ../example-project --issue ./issues/task.yaml
+```
+
+在完整安全边界和工具实现完成前，CLI 不会执行真实修复任务。
 
 项目的工程约定在以下文档中：
 
@@ -150,9 +156,12 @@ allowed_paths:
   - tests/users/**
 
 verification:
-  - npm run lint
-  - npm run typecheck
-  - npm test -- users
+  - executable: npm
+    args: [run, lint]
+  - executable: npm
+    args: [run, typecheck]
+  - executable: npm
+    args: [test, --, users]
 
 limits:
   max_iterations: 8
