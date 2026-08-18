@@ -98,14 +98,24 @@ export class PathPolicy {
       return deny("symlink_escape");
     }
 
-    const relativePath = toPortablePath(relative(this.#worktreeRoot, resolved.canonicalPath));
-    if (relativePath.length === 0) {
-      return deny("invalid_path");
+    const resolvedRelativePath = toPortablePath(
+      relative(this.#worktreeRoot, resolved.canonicalPath),
+    );
+    if (resolvedRelativePath.length === 0) {
+      if (operation === "write") {
+        return deny("invalid_path");
+      }
+      return Object.freeze({
+        allowed: true,
+        operation,
+        canonicalPath: resolved.canonicalPath,
+        relativePath: ".",
+      });
     }
 
     if (
       operation === "write" &&
-      !this.#allowedWritePatterns.some((pattern) => matchesGlob(relativePath, pattern))
+      !this.#allowedWritePatterns.some((pattern) => matchesGlob(resolvedRelativePath, pattern))
     ) {
       return deny("path_not_allowed");
     }
@@ -114,7 +124,7 @@ export class PathPolicy {
       allowed: true,
       operation,
       canonicalPath: resolved.canonicalPath,
-      relativePath,
+      relativePath: resolvedRelativePath,
     });
   }
 }
@@ -227,11 +237,12 @@ function normalizeRequestedPath(path: string): string | undefined {
   }
 
   const segments = portablePath.split("/");
-  if (segments.includes("..") || segments.every((segment) => segment === "" || segment === ".")) {
+  if (segments.includes("..")) {
     return undefined;
   }
 
-  return segments.filter((segment) => segment !== "" && segment !== ".").join("/");
+  const normalized = segments.filter((segment) => segment !== "" && segment !== ".").join("/");
+  return normalized.length === 0 ? "." : normalized;
 }
 
 function isContained(root: string, candidate: string): boolean {
