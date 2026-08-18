@@ -11,7 +11,7 @@ The project can validate a bounded YAML task, prepare an isolated Git worktree,
 and compose a canonical path policy without calling a model or running
 task-configured commands.
 
-The next milestone is Milestone 2, **Deterministic Repair**.
+The current milestone is Milestone 2, **Deterministic Repair**.
 
 The project is not yet able to repair an Issue. There are no repository file
 tools, command execution policy, verification runner, run artifacts, or model
@@ -32,6 +32,28 @@ Every milestone must satisfy these rules:
 
 GitHub milestones and Issues track execution. This document records product
 intent and exit criteria.
+
+## Interaction Model
+
+The strict task contract is an internal execution and audit protocol, not the
+primary user experience.
+
+The first usable MVP in M3 will provide two entry modes:
+
+- `issue-fix` starts an interactive terminal wizard that detects the current
+  repository, asks for the intended fix, proposes verification commands, and
+  requires confirmation of write scope and limits;
+- `issue-fix run --repo <path> --issue <path>` remains the explicit,
+  non-interactive interface for automation, evaluation, debugging, and
+  reproducibility.
+
+The wizard generates and persists the same validated task contract used by the
+non-interactive interface. Safe defaults are not repeatedly presented unless
+the user chooses advanced configuration.
+
+The first implementation should use Node.js `readline/promises`. A full-screen
+TUI framework is deferred until observed usage requires persistent rendering,
+keyboard navigation, or an integrated diff viewer.
 
 ## M0 — Agent Kernel
 
@@ -100,7 +122,9 @@ execution context before any model call or task-configured command can occur.
 
 ## M2 — Deterministic Repair
 
-**Status:** Next
+**Status:** In progress
+
+**GitHub milestone:** [M2 — Deterministic Repair](https://github.com/Holiday-C/issue-fix-agent/milestone/2)
 
 ### Goal
 
@@ -109,6 +133,12 @@ a paid model call.
 
 ### Scope
 
+- [#17: bounded repository discovery tools](https://github.com/Holiday-C/issue-fix-agent/issues/17)
+- [#18: controlled patch and diff tools](https://github.com/Holiday-C/issue-fix-agent/issues/18)
+- [#19: structured command execution policy](https://github.com/Holiday-C/issue-fix-agent/issues/19)
+- [#20: deterministic acceptance checks](https://github.com/Holiday-C/issue-fix-agent/issues/20)
+- [#21: redacted run artifacts](https://github.com/Holiday-C/issue-fix-agent/issues/21)
+- [#22: deterministic fixture repair](https://github.com/Holiday-C/issue-fix-agent/issues/22)
 - bounded `list_files`, `search_code`, and segmented `read_file` tools;
 - worktree-only `apply_patch` and `git_diff` tools;
 - policy-controlled `run_command` using executable and argument arrays;
@@ -145,6 +175,11 @@ the first usable local candidate repair.
 - API timeout, interruption, and provider-error handling;
 - secret and trace redaction;
 - `succeeded`, `failed`, `blocked`, and `cancelled` outcomes;
+- an interactive `issue-fix` wizard implemented with Node.js
+  `readline/promises`;
+- repository and verification-command detection with explicit write-scope
+  confirmation;
+- concise live progress rendered from public trace events;
 - the complete `issue-fix run --repo <path> --issue <path>` CLI path.
 
 ### Exit criteria
@@ -154,6 +189,8 @@ the first usable local candidate repair.
 - No run violates path or command policy.
 - API credentials never enter model context, artifacts, or trace output.
 - Each run reports elapsed time, tokens, and estimated cost.
+- A user can start a repair interactively without authoring YAML.
+- The generated task contract is saved with the run artifacts.
 - Paid runs are manual and never part of `npm run verify`.
 
 M3 is the first usable MVP.
@@ -223,4 +260,5 @@ that needs them:
 - workflow graph frameworks;
 - cloud scheduling;
 - browser tools;
+- a full-screen TUI framework;
 - autonomous review, merge, or deployment.
