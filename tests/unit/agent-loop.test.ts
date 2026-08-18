@@ -4,7 +4,7 @@ import { runAgentLoop } from "../../src/agent/agent-loop.js";
 import { IterationBudget } from "../../src/agent/budget.js";
 import type { ModelPort, ModelResponse } from "../../src/model/types.js";
 import { ToolRegistry } from "../../src/tools/tool-registry.js";
-import { NoopTraceSink } from "../../src/trace/types.js";
+import { NoopTraceSink, type TraceSink } from "../../src/trace/types.js";
 
 class SequenceModel implements ModelPort {
   readonly #responses: ModelResponse[];
@@ -112,6 +112,28 @@ describe("runAgentLoop", () => {
     expect(outcome).toMatchObject({
       status: "blocked",
       reason: "budget_exhausted",
+      iterations: 1,
+    });
+  });
+
+  it("returns an explicit failed outcome when trace persistence fails", async () => {
+    const trace: TraceSink = {
+      record: async () => Promise.reject(new Error("disk full")),
+    };
+
+    const outcome = await runAgentLoop(
+      { system: "Test", messages: [{ role: "user", content: [{ type: "text", text: "Fix" }] }] },
+      {
+        model: new SequenceModel([]),
+        tools: new ToolRegistry([]),
+        budget: new IterationBudget(1),
+        trace,
+      },
+    );
+
+    expect(outcome).toMatchObject({
+      status: "failed",
+      reason: "trace_write_failed",
       iterations: 1,
     });
   });

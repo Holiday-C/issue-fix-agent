@@ -87,6 +87,7 @@ Runs task-configured checks after the model stops, independently of the model's 
 ### `src/trace/`
 
 Records an append-only sequence of redacted events. Tracing failures must not silently alter Agent decisions. Sensitive values are redacted before serialization.
+If an event cannot be persisted, the Agent returns a failed outcome with `trace_write_failed`.
 
 ### `src/cli/`
 

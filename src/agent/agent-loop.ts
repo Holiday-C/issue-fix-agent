@@ -20,7 +20,9 @@ export async function runAgentLoop(
   while (dependencies.budget.canStartIteration()) {
     dependencies.budget.recordIteration();
     const iteration = dependencies.budget.iterationsUsed();
-    await dependencies.trace.record({ type: "iteration_started", iteration });
+    if (!(await recordTrace(dependencies.trace, { type: "iteration_started", iteration }))) {
+      return traceFailure(messages, iteration);
+    }
 
     const response = await dependencies.model.complete({
       system: input.system,
@@ -29,11 +31,15 @@ export async function runAgentLoop(
     });
 
     messages.push(response.message);
-    await dependencies.trace.record({
-      type: "model_responded",
-      iteration,
-      metadata: { stopReason: response.stopReason, toolCalls: response.toolCalls.length },
-    });
+    if (
+      !(await recordTrace(dependencies.trace, {
+        type: "model_responded",
+        iteration,
+        metadata: { stopReason: response.stopReason, toolCalls: response.toolCalls.length },
+      }))
+    ) {
+      return traceFailure(messages, iteration);
+    }
 
     if (response.stopReason === "end_turn") {
       return stop("completed", "end_turn", messages, dependencies, iteration);
@@ -57,11 +63,15 @@ export async function runAgentLoop(
         content: result.content,
         isError: result.isError,
       });
-      await dependencies.trace.record({
-        type: "tool_completed",
-        iteration,
-        metadata: { tool: call.name, isError: result.isError },
-      });
+      if (
+        !(await recordTrace(dependencies.trace, {
+          type: "tool_completed",
+          iteration,
+          metadata: { tool: call.name, isError: result.isError },
+        }))
+      ) {
+        return traceFailure(messages, iteration);
+      }
     }
 
     messages.push({ role: "user", content: results });
@@ -78,11 +88,31 @@ async function stop(
   dependencies: AgentLoopDependencies,
   iteration: number,
 ): Promise<AgentOutcome> {
-  await dependencies.trace.record({
-    type: "agent_stopped",
-    iteration,
-    metadata: { status, reason },
-  });
+  if (
+    !(await recordTrace(dependencies.trace, {
+      type: "agent_stopped",
+      iteration,
+      metadata: { status, reason },
+    }))
+  ) {
+    return traceFailure(messages, iteration);
+  }
 
   return { status, reason, iterations: iteration, messages };
+}
+
+async function recordTrace(
+  trace: TraceSink,
+  event: Parameters<TraceSink["record"]>[0],
+): Promise<boolean> {
+  try {
+    await trace.record(event);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function traceFailure(messages: AgentOutcome["messages"], iteration: number): AgentOutcome {
+  return { status: "failed", reason: "trace_write_failed", iterations: iteration, messages };
 }
