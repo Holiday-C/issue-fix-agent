@@ -67,6 +67,20 @@ describe("PathPolicy", () => {
     });
   });
 
+  it("allows reading but not writing the worktree root", async () => {
+    const root = await createWorktree();
+    const policy = await PathPolicy.create(root, ["src/**"]);
+
+    await expect(policy.authorize({ operation: "read", path: "." })).resolves.toMatchObject({
+      allowed: true,
+      relativePath: ".",
+    });
+    await expect(policy.authorize({ operation: "write", path: "." })).resolves.toEqual({
+      allowed: false,
+      reason: "invalid_path",
+    });
+  });
+
   it.each(["/etc/passwd", "../outside.txt", "src/../../outside.txt", "C:\\secrets.txt"])(
     "denies unsafe requested path %s",
     async (path) => {
