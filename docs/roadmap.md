@@ -6,15 +6,16 @@ modules.
 
 ## Current Status
 
-Milestone 0, **Agent Kernel**, is complete. The project currently has a
-provider-neutral model/tool loop, a tool registry, an iteration budget, trace
-contracts, a CLI shell, and deterministic unit tests.
+Milestone 0, **Agent Kernel**, and Milestone 1, **Safe Workspace**, are complete.
+The project can validate a bounded YAML task, prepare an isolated Git worktree,
+and compose a canonical path policy without calling a model or running
+task-configured commands.
 
-The current milestone is Milestone 1, **Safe Workspace**.
+The next milestone is Milestone 2, **Deterministic Repair**.
 
-The project is not yet able to repair an Issue. There are no repository tools,
-worktree isolation, permission enforcement, model adapter, verification runner,
-or run artifacts.
+The project is not yet able to repair an Issue. There are no repository file
+tools, command execution policy, verification runner, run artifacts, or model
+adapter.
 
 ## Milestone Rules
 
@@ -62,7 +63,7 @@ repository or paid model.
 
 ## M1 — Safe Workspace
 
-**Status:** In progress
+**Status:** Complete
 
 **GitHub milestone:** [M1 — Safe Workspace](https://github.com/Holiday-C/issue-fix-agent/milestone/1)
 
@@ -99,7 +100,7 @@ execution context before any model call or task-configured command can occur.
 
 ## M2 — Deterministic Repair
 
-**Status:** Planned
+**Status:** Next
 
 ### Goal
 

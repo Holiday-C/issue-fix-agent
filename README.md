@@ -6,7 +6,7 @@
 
 > 给定一个描述清楚的 Issue，Agent 能否产出一份通过自动化检查、方便人工审查的候选修复？
 
-Milestone 0（Agent Kernel）已经完成，项目当前进入 Milestone 1（Safe Workspace）。现有代码具备最小 Agent Loop、工具注册、迭代预算和确定性单元测试；仓库工具、隔离执行和真实模型适配仍未实现。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
+Milestone 0（Agent Kernel）和 Milestone 1（Safe Workspace）已经完成，下一阶段是 Milestone 2（Deterministic Repair）。现有代码可以验证 YAML task contract、准备隔离 Git worktree 并组装 canonical path policy，但尚未实现仓库文件工具、验证执行器或真实模型适配。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
 
 ## 快速开始
 
@@ -316,13 +316,13 @@ LLM 输出始终被视为不可信输入。任何工具调用在执行之前都�
 | Milestone                       | 状态   | 可验证结果                                         |
 | ------------------------------- | ------ | -------------------------------------------------- |
 | M0 — Agent Kernel               | 完成   | Fake model 可以驱动最小工具循环并确定性停止        |
-| M1 — Safe Workspace             | 进行中 | 仓库和任务被验证，并生成安全的隔离执行上下文       |
-| M2 — Deterministic Repair       | 计划中 | Scripted model 在 fixture 中完成一次验证通过的修复 |
+| M1 — Safe Workspace             | 完成   | 仓库和任务被验证，并生成安全的隔离执行上下文       |
+| M2 — Deterministic Repair       | 下一步 | Scripted model 在 fixture 中完成一次验证通过的修复 |
 | M3 — Real Model MVP             | 计划中 | Anthropic 驱动第一个可用的本地候选修复             |
 | M4 — Evaluation and Reliability | 计划中 | 10 个固定任务形成成功率、安全和成本基线            |
 | M5 — Dogfooding                 | 计划中 | 连续 3 个真实小型修复通过人工审查                  |
 
-详细范围、非目标和退出标准见 [`docs/roadmap.md`](./docs/roadmap.md)。当前执行任务见 [M1 — Safe Workspace](https://github.com/Holiday-C/issue-fix-agent/milestone/1)。
+详细范围、非目标和退出标准见 [`docs/roadmap.md`](./docs/roadmap.md)。M1 的 4 个 Issues 已完成，归档见 [M1 — Safe Workspace](https://github.com/Holiday-C/issue-fix-agent/milestone/1)。
 
 ## 有意推迟的能力
 
