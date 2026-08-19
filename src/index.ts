@@ -9,6 +9,13 @@ export {
   type ResourceUsageSummary,
 } from "./agent/budget.js";
 export type { AgentInput, AgentOutcome } from "./agent/types.js";
+export {
+  buildRepairContext,
+  MAX_REPAIR_CONTEXT_BYTES,
+  RepairContextError,
+  type RepairContext,
+  type RepairContextMetadata,
+} from "./cli/repair-context.js";
 export type {
   ConversationMessage,
   ModelPort,
@@ -28,3 +35,10 @@ export {
 export { ToolRegistry } from "./tools/tool-registry.js";
 export type { ToolExecutor, ToolRegistryPort, ToolResult } from "./tools/types.js";
 export { NoopTraceSink, type TraceEvent, type TraceSink } from "./trace/types.js";
+export {
+  loadRepositoryInstructions,
+  REPOSITORY_INSTRUCTION_LIMITS,
+  type OmittedRepositoryInstruction,
+  type RepositoryInstructionDocument,
+  type RepositoryInstructionSet,
+} from "./workspace/repository-instructions.js";

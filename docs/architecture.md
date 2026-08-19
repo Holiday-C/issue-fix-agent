@@ -78,7 +78,7 @@ Evaluates requested operations against an immutable execution policy. Decisions 
 
 ### `src/workspace/`
 
-Owns target-repository discovery, worktree creation, canonical path resolution, diff capture, and cleanup. Other modules never construct privileged paths by string concatenation.
+Owns target-repository discovery, worktree creation, canonical path resolution, bounded repository-instruction loading, diff capture, and cleanup. Other modules never construct privileged paths by string concatenation.
 
 ### `src/verification/`
 
@@ -91,7 +91,7 @@ If an event cannot be persisted, the Agent returns a failed outcome with `trace_
 
 ### `src/cli/`
 
-Parses arguments, loads configuration, constructs concrete adapters, handles signals, and maps outcomes to exit codes. It is the only composition root.
+Parses arguments, loads configuration, assembles provider-neutral repair context, constructs concrete adapters, handles signals, and maps outcomes to exit codes. It is the only composition root. Repository-provided text remains user-level context and never becomes host authority.
 
 ## Dependency Rules
 
