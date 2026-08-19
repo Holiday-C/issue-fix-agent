@@ -50,6 +50,7 @@ describe("AnthropicMessagesAdapter", () => {
     expect(client.requests[0]).toMatchObject({
       model: "claude-configured",
       max_tokens: 4_096,
+      thinking: { type: "disabled" },
       system: "System instructions",
       messages: [
         { role: "user", content: [{ type: "text", text: "Fix it" }] },

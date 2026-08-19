@@ -192,6 +192,7 @@ function createRequest(
   const body = Object.freeze({
     model,
     max_tokens: maxTokens,
+    thinking: Object.freeze({ type: "disabled" }),
     system: boundedText(request.system, "system prompt"),
     messages: Object.freeze(request.messages.map(toProviderMessage)),
     tools: Object.freeze(request.tools.map(toProviderTool)),
