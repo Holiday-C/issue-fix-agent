@@ -20,6 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/cli/main.ts",
+    "eval:m3": "tsx evals/run-live-m3.ts",
     "start": "node dist/cli/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
