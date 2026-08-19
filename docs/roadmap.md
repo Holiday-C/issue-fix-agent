@@ -178,6 +178,7 @@ the first usable local candidate repair.
 - [#35: manual real-model validation](https://github.com/Holiday-C/issue-fix-agent/issues/35)
 - [#44: Anthropic-compatible gateways](https://github.com/Holiday-C/issue-fix-agent/issues/44)
 - [#45: OpenAI-compatible gateway adapter](https://github.com/Holiday-C/issue-fix-agent/issues/45)
+- [#49: safe thinking-mode switch](https://github.com/Holiday-C/issue-fix-agent/issues/49)
 
 - Anthropic adapter contained in `src/model/`;
 - repository instructions and task prompt assembly;

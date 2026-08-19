@@ -61,6 +61,7 @@ Environment:
   ANTHROPIC_API_KEY             Official Anthropic API key fallback
   ANTHROPIC_MODEL               Optional interactive model default
   ANTHROPIC_PRICING             Optional interactive pricing default
+  ANTHROPIC_THINKING            enabled or disabled (default: disabled)
 
 Exit codes:
   0 succeeded, 1 failed, 2 usage error, 3 blocked, 130 cancelled
@@ -351,6 +352,11 @@ async function executeRepair(
     io.stderr.write("error: ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required\n");
     return 3;
   }
+  const thinkingMode = anthropicThinkingMode(dependencies.environment);
+  if (thinkingMode === undefined) {
+    io.stderr.write("error: ANTHROPIC_THINKING must be enabled or disabled\n");
+    return 2;
+  }
 
   try {
     const loaded = await dependencies.loadTask(configuration.taskPath);
@@ -367,6 +373,7 @@ async function executeRepair(
     );
     const model = dependencies.createModel({
       ...authentication,
+      thinkingMode,
       model: configuration.modelId,
       maxTokens: configuration.maxModelTokens,
       timeoutMilliseconds: Math.min(maximumElapsed, 120_000),
@@ -395,6 +402,12 @@ async function executeRepair(
     io.stderr.write("error: repair run failed unexpectedly\n");
     return 1;
   }
+}
+
+function anthropicThinkingMode(environment: CliEnvironment): "enabled" | "disabled" | undefined {
+  const value = environment["ANTHROPIC_THINKING"]?.trim().toLocaleLowerCase("en-US");
+  if (value === undefined || value.length === 0) return "disabled";
+  return value === "enabled" || value === "disabled" ? value : undefined;
 }
 
 function anthropicAuthentication(

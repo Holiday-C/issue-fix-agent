@@ -25,6 +25,7 @@ describe("loadLiveM3Config", () => {
         ANTHROPIC_BASE_URL: "https://gateway.example/v1",
         ANTHROPIC_MODEL: "qwen3.8-max-preview[1m]",
         ANTHROPIC_PRICING: "1,2,3,4",
+        ANTHROPIC_THINKING: "enabled",
       },
       "/workspace",
     );
@@ -32,6 +33,7 @@ describe("loadLiveM3Config", () => {
     expect(config).toMatchObject({
       model: "qwen3.8-max-preview[1m]",
       baseURL: "https://gateway.example/v1",
+      thinkingMode: "enabled",
     });
     expect(JSON.stringify(config)).not.toContain("gateway-token");
   });
@@ -54,6 +56,7 @@ describe("loadLiveM3Config", () => {
       pricing: "1,2,3,4",
       maxCostUsd: 2.5,
       outputRoot: "/workspace/evidence",
+      thinkingMode: "disabled",
     });
     expect(JSON.stringify(config)).not.toContain("must-not-be-returned");
   });

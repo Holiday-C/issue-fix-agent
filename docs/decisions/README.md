@@ -18,3 +18,4 @@ Create a new numbered Markdown file from `0000-template.md`. Never rewrite the r
 - [ADR-0003: Use a native OS command sandbox](./0003-use-native-command-sandbox.md)
 - [ADR-0004: Use the Anthropic Messages API](./0004-use-anthropic-messages-api.md)
 - [ADR-0005: Require explicit custom provider endpoints](./0005-require-explicit-provider-endpoints.md)
+- [ADR-0006: Replay opt-in thinking opaquely](./0006-replay-thinking-opaquely.md)

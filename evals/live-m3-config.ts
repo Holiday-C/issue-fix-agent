@@ -8,6 +8,7 @@ export type LiveM3Config = Readonly<{
   maxCostUsd: number;
   outputRoot: string;
   baseURL?: string;
+  thinkingMode: "enabled" | "disabled";
 }>;
 
 export class LiveM3ConfigurationError extends Error {
@@ -52,14 +53,23 @@ export function loadLiveM3Config(
   if (baseURL !== undefined && baseURL.length > 0 && !validBaseURL(baseURL)) {
     throw new LiveM3ConfigurationError("ANTHROPIC_BASE_URL is invalid");
   }
+  const thinkingMode = thinkingModeValue(environment["ANTHROPIC_THINKING"]);
 
   return Object.freeze({
     model,
     pricing,
     maxCostUsd,
     outputRoot,
+    thinkingMode,
     ...(baseURL === undefined || baseURL.length === 0 ? {} : { baseURL }),
   });
+}
+
+function thinkingModeValue(source: string | undefined): "enabled" | "disabled" {
+  const value = source?.trim().toLocaleLowerCase("en-US");
+  if (value === undefined || value.length === 0) return "disabled";
+  if (value === "enabled" || value === "disabled") return value;
+  throw new LiveM3ConfigurationError("ANTHROPIC_THINKING must be enabled or disabled");
 }
 
 function validBaseURL(source: string): boolean {

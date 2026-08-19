@@ -32,10 +32,15 @@ For an Anthropic Messages-compatible gateway, replace the API key with:
 export ANTHROPIC_BASE_URL=your-gateway-base-url
 export ANTHROPIC_AUTH_TOKEN=your-token
 export ANTHROPIC_MODEL='qwen3.8-max-preview[1m]'
+export ANTHROPIC_THINKING=enabled
 ```
 
 The gateway must implement the Anthropic `/v1/messages` wire format. Do not use
 an OpenAI-compatible chat URL with this adapter.
+
+Thinking defaults to `disabled`. When enabled, signed thinking blocks required
+for tool-call continuity are replayed only inside the adapter and are excluded
+from Agent messages and evidence.
 
 Optional controls:
 
