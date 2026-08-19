@@ -205,6 +205,7 @@ describe("runCli", () => {
         ANTHROPIC_AUTH_TOKEN: "gateway-token",
         ANTHROPIC_BASE_URL: "https://gateway.example/v1",
         ANTHROPIC_API_KEY: "stale-api-key",
+        ANTHROPIC_THINKING: "enabled",
       },
     };
 
@@ -229,6 +230,7 @@ describe("runCli", () => {
         authToken: "gateway-token",
         baseURL: "https://gateway.example/v1",
         model: "qwen3.8-max-preview[1m]",
+        thinkingMode: "enabled",
         maxTokens: 8_192,
         timeoutMilliseconds: 60_000,
       },

@@ -246,6 +246,118 @@ describe("AnthropicMessagesAdapter", () => {
         }),
     ).toThrow(AnthropicModelError);
   });
+
+  it("replays enabled thinking opaquely without exposing it to the agent", async () => {
+    const hiddenReasoning = "private chain of thought";
+    const responses: unknown[] = [
+      {
+        ...validResponse,
+        content: [
+          {
+            type: "thinking",
+            thinking: hiddenReasoning,
+            signature: "signed-thinking",
+          },
+          {
+            type: "tool_use",
+            id: "thinking-call",
+            name: "read_file",
+            input: { path: "src/example.ts" },
+          },
+        ],
+      },
+      { ...validResponse, stop_reason: "end_turn", content: [{ type: "text", text: "Done" }] },
+    ];
+    const client = new RecordingClient(() => Promise.resolve(responses.shift()));
+    const adapter = new AnthropicMessagesAdapter(
+      {
+        apiKey: "test-api-key",
+        model: "claude-configured",
+        maxTokens: 4_096,
+        thinkingMode: "enabled",
+      },
+      client,
+    );
+
+    const first = await adapter.complete(modelRequest);
+    expect(JSON.stringify(first)).not.toContain(hiddenReasoning);
+    expect(first.toolCalls).toMatchObject([{ id: "thinking-call" }]);
+
+    await adapter.complete({
+      system: modelRequest.system,
+      tools: modelRequest.tools,
+      messages: [
+        { role: "user", content: [{ type: "text", text: "Fix it" }] },
+        first.message,
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolUseId: "thinking-call",
+              content: "file content",
+              isError: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(client.requests[0]).toMatchObject({
+      thinking: { type: "enabled", budget_tokens: 1_024 },
+    });
+    expect(client.requests[1]).toMatchObject({
+      messages: [
+        { role: "user" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "thinking",
+              thinking: hiddenReasoning,
+              signature: "signed-thinking",
+            },
+            { type: "tool_use", id: "thinking-call" },
+          ],
+        },
+        { role: "user" },
+      ],
+    });
+  });
+
+  it("rejects enabled thinking that exceeds the opaque memory ceiling", async () => {
+    const client = new RecordingClient(() =>
+      Promise.resolve({
+        ...validResponse,
+        content: [
+          {
+            type: "thinking",
+            thinking: "x".repeat(1024 * 1024 + 1),
+            signature: "signed-thinking",
+          },
+          {
+            type: "tool_use",
+            id: "thinking-call",
+            name: "read_file",
+            input: { path: "src/example.ts" },
+          },
+        ],
+      }),
+    );
+    const adapter = new AnthropicMessagesAdapter(
+      {
+        apiKey: "test-api-key",
+        model: "claude-configured",
+        maxTokens: 4_096,
+        thinkingMode: "enabled",
+      },
+      client,
+    );
+
+    await expect(adapter.complete(modelRequest)).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
 });
 
 class RecordingClient implements AnthropicClientPort {

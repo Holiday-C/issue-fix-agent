@@ -23,6 +23,7 @@ const MAX_TEXT_BYTES = 1024 * 1024;
 const MAX_TOOL_INPUT_BYTES = 256 * 1024;
 const MAX_COLLECTION_ITEMS = 1_000;
 const MAX_JSON_DEPTH = 20;
+const MAX_OPAQUE_THINKING_BYTES = 1024 * 1024;
 
 const optionsSchema = z
   .strictObject({
@@ -37,6 +38,7 @@ const optionsSchema = z
       .optional(),
     model: z.string().trim().min(1).max(200),
     maxTokens: z.int().min(1).max(64_000),
+    thinkingMode: z.enum(["enabled", "disabled"]).default("disabled"),
     timeoutMilliseconds: z
       .int()
       .min(1)
@@ -47,6 +49,12 @@ const optionsSchema = z
     if (value.apiKey === undefined && value.authToken === undefined) {
       context.addIssue({ code: "custom", message: "An API key or auth token is required" });
     }
+    if (value.thinkingMode === "enabled" && value.maxTokens <= 1_024) {
+      context.addIssue({
+        code: "custom",
+        message: "Enabled thinking requires maxTokens greater than 1024",
+      });
+    }
   });
 
 export type AnthropicModelOptions = Readonly<{
@@ -56,7 +64,12 @@ export type AnthropicModelOptions = Readonly<{
   model: string;
   maxTokens: number;
   timeoutMilliseconds?: number;
+  thinkingMode?: "enabled" | "disabled";
 }>;
+
+type OpaqueThinkingBlock =
+  | Readonly<{ type: "thinking"; thinking: string; signature: string }>
+  | Readonly<{ type: "redacted_thinking"; data: string }>;
 
 export interface AnthropicClientPort {
   createMessage(request: unknown, signal: AbortSignal): Promise<unknown>;
@@ -87,6 +100,9 @@ export class AnthropicMessagesAdapter implements ModelPort {
   readonly #model: string;
   readonly #maxTokens: number;
   readonly #timeoutMilliseconds: number;
+  readonly #thinkingMode: "enabled" | "disabled";
+  readonly #thinkingByToolCall = new Map<string, readonly OpaqueThinkingBlock[]>();
+  #opaqueThinkingBytes = 0;
 
   public constructor(options: AnthropicModelOptions, client?: AnthropicClientPort) {
     const parsed = optionsSchema.safeParse(options);
@@ -100,6 +116,7 @@ export class AnthropicMessagesAdapter implements ModelPort {
     this.#model = parsed.data.model;
     this.#maxTokens = parsed.data.maxTokens;
     this.#timeoutMilliseconds = parsed.data.timeoutMilliseconds;
+    this.#thinkingMode = parsed.data.thinkingMode;
     const authentication =
       parsed.data.authToken !== undefined
         ? { authToken: parsed.data.authToken }
@@ -125,7 +142,13 @@ export class AnthropicMessagesAdapter implements ModelPort {
       throw new AnthropicModelError("cancelled", "Anthropic request was cancelled");
     }
 
-    const body = createRequest(request, this.#model, this.#maxTokens);
+    const body = createRequest(
+      request,
+      this.#model,
+      this.#maxTokens,
+      this.#thinkingMode,
+      this.#thinkingByToolCall,
+    );
     const deadline = createDeadline(this.#timeoutMilliseconds, signal);
     try {
       const response = await this.#client.createMessage(body, deadline.signal);
@@ -135,12 +158,26 @@ export class AnthropicMessagesAdapter implements ModelPort {
           deadline.timedOut() ? "Anthropic request timed out" : "Anthropic request was cancelled",
         );
       }
-      return parseResponse(response);
+      const parsed = parseResponse(response, this.#thinkingMode);
+      this.#rememberThinking(parsed.toolCalls, parsed.opaqueThinking);
+      return parsed.response;
     } catch (error: unknown) {
       throw normalizeError(error, deadline.timedOut(), signalIsAborted(signal));
     } finally {
       deadline.dispose();
     }
+  }
+
+  #rememberThinking(
+    toolCalls: readonly ToolUseBlock[],
+    opaqueThinking: readonly OpaqueThinkingBlock[],
+  ): void {
+    if (toolCalls.length === 0 || opaqueThinking.length === 0) return;
+    const bytes = Buffer.byteLength(JSON.stringify(opaqueThinking), "utf8");
+    if (this.#opaqueThinkingBytes + bytes > MAX_OPAQUE_THINKING_BYTES) throw invalidResponse();
+    const frozen = Object.freeze([...opaqueThinking]);
+    for (const call of toolCalls) this.#thinkingByToolCall.set(call.id, frozen);
+    this.#opaqueThinkingBytes += bytes;
   }
 }
 
@@ -182,6 +219,8 @@ function createRequest(
   request: ModelRequest,
   model: string,
   maxTokens: number,
+  thinkingMode: "enabled" | "disabled",
+  thinkingByToolCall: ReadonlyMap<string, readonly OpaqueThinkingBlock[]>,
 ): Readonly<Record<string, unknown>> {
   if (
     request.messages.length > MAX_COLLECTION_ITEMS ||
@@ -192,9 +231,17 @@ function createRequest(
   const body = Object.freeze({
     model,
     max_tokens: maxTokens,
-    thinking: Object.freeze({ type: "disabled" }),
+    thinking:
+      thinkingMode === "disabled"
+        ? Object.freeze({ type: "disabled" })
+        : Object.freeze({
+            type: "enabled",
+            budget_tokens: Math.max(1_024, Math.min(maxTokens - 1, Math.floor(maxTokens / 4))),
+          }),
     system: boundedText(request.system, "system prompt"),
-    messages: Object.freeze(request.messages.map(toProviderMessage)),
+    messages: Object.freeze(
+      request.messages.map((message) => toProviderMessage(message, thinkingByToolCall)),
+    ),
     tools: Object.freeze(request.tools.map(toProviderTool)),
   });
   const serialized = safeStringify(body, "request");
@@ -204,8 +251,20 @@ function createRequest(
   return body;
 }
 
-function toProviderMessage(message: ConversationMessage): Readonly<Record<string, unknown>> {
-  const content = message.content.map((block) => toProviderBlock(message.role, block));
+function toProviderMessage(
+  message: ConversationMessage,
+  thinkingByToolCall: ReadonlyMap<string, readonly OpaqueThinkingBlock[]>,
+): Readonly<Record<string, unknown>> {
+  const toolCall =
+    message.role === "assistant"
+      ? message.content.find((block) => block.type === "tool_use")
+      : undefined;
+  const opaqueThinking =
+    toolCall?.type === "tool_use" ? (thinkingByToolCall.get(toolCall.id) ?? []) : [];
+  const content = [
+    ...opaqueThinking,
+    ...message.content.map((block) => toProviderBlock(message.role, block)),
+  ];
   return Object.freeze({ role: message.role, content: Object.freeze(content) });
 }
 
@@ -254,7 +313,14 @@ function toProviderTool(tool: ToolDefinition): Readonly<Record<string, unknown>>
   });
 }
 
-function parseResponse(source: unknown): ModelResponse {
+function parseResponse(
+  source: unknown,
+  thinkingMode: "enabled" | "disabled",
+): Readonly<{
+  response: ModelResponse;
+  toolCalls: readonly ToolUseBlock[];
+  opaqueThinking: readonly OpaqueThinkingBlock[];
+}> {
   if (!isRecord(source) || source["type"] !== "message" || source["role"] !== "assistant") {
     throw invalidResponse();
   }
@@ -270,15 +336,55 @@ function parseResponse(source: unknown): ModelResponse {
   }
   if (content.length > MAX_COLLECTION_ITEMS) throw invalidResponse();
 
-  const blocks = content.map(parseResponseBlock);
+  const blocks: MessageBlock[] = [];
+  const opaqueThinking: OpaqueThinkingBlock[] = [];
+  for (const block of content) {
+    if (
+      isRecord(block) &&
+      (block["type"] === "thinking" || block["type"] === "redacted_thinking")
+    ) {
+      if (thinkingMode !== "enabled") throw invalidResponse();
+      opaqueThinking.push(parseOpaqueThinking(block));
+    } else {
+      blocks.push(parseResponseBlock(block));
+    }
+  }
   const toolCalls = blocks.filter((block): block is ToolUseBlock => block.type === "tool_use");
+  const frozenToolCalls = Object.freeze(toolCalls);
   return Object.freeze({
-    message: Object.freeze({ role: "assistant", content: Object.freeze(blocks) }),
-    stopReason: parseStopReason(source["stop_reason"]),
-    toolCalls: Object.freeze(toolCalls),
-    model,
-    usage: parseUsage(source["usage"]),
+    response: Object.freeze({
+      message: Object.freeze({ role: "assistant", content: Object.freeze(blocks) }),
+      stopReason: parseStopReason(source["stop_reason"]),
+      toolCalls: frozenToolCalls,
+      model,
+      usage: parseUsage(source["usage"]),
+    }),
+    toolCalls: frozenToolCalls,
+    opaqueThinking: Object.freeze(opaqueThinking),
   });
+}
+
+function parseOpaqueThinking(source: Readonly<Record<string, unknown>>): OpaqueThinkingBlock {
+  if (source["type"] === "thinking") {
+    if (typeof source["thinking"] !== "string" || typeof source["signature"] !== "string") {
+      throw invalidResponse();
+    }
+    if (
+      Buffer.byteLength(source["thinking"], "utf8") > MAX_TEXT_BYTES ||
+      source["signature"].length > 100_000
+    ) {
+      throw invalidResponse();
+    }
+    return Object.freeze({
+      type: "thinking",
+      thinking: source["thinking"],
+      signature: source["signature"],
+    });
+  }
+  if (typeof source["data"] !== "string" || source["data"].length > 1_000_000) {
+    throw invalidResponse();
+  }
+  return Object.freeze({ type: "redacted_thinking", data: source["data"] });
 }
 
 function parseResponseBlock(source: unknown): MessageBlock {

@@ -91,6 +91,7 @@ async function main(): Promise<number> {
     complete,
     model: config.model,
     baseURL: config.baseURL ?? null,
+    thinkingMode: config.thinkingMode,
     pricing: config.pricing,
     maxCostUsdPerRun: config.maxCostUsd,
     runs: Object.freeze(summaries),
