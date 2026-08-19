@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createRunArtifacts, RunArtifactError } from "../../src/trace/run-artifacts.js";
+import type { TraceEvent } from "../../src/trace/types.js";
 import { parseTaskContract } from "../../src/task/task-contract.js";
 
 const temporaryDirectories: string[] = [];
@@ -18,9 +19,11 @@ afterEach(async () => {
 describe("run artifacts", () => {
   it("persists ordered, redacted, reviewable run evidence", async () => {
     const root = await createRepository();
+    const observedEvents: TraceEvent[] = [];
     const artifacts = await createRunArtifacts(root, {
       runId: "run-test-1",
       secretPatterns: ["custom-secret"],
+      onEvent: (event) => observedEvents.push(event),
     });
     const task = parseTaskContract(validTask);
 
@@ -70,6 +73,11 @@ describe("run artifacts", () => {
       );
     }
     expect(files.some((name) => name.endsWith(".tmp"))).toBe(false);
+    expect(observedEvents.map((event) => event.type)).toEqual([
+      "iteration_started",
+      "model_responded",
+      "agent_stopped",
+    ]);
     expect(await readFile(join(artifacts.runDirectory, "verification.json"), "utf8")).toContain(
       '"environment": "[REDACTED]"',
     );

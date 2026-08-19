@@ -6,7 +6,7 @@
 
 > 给定一个描述清楚的 Issue，Agent 能否产出一份通过自动化检查、方便人工审查的候选修复？
 
-Milestone 0（Agent Kernel）和 Milestone 1（Safe Workspace）已经完成，项目当前进入 Milestone 2（Deterministic Repair）。现有代码可以验证 YAML task contract、准备隔离 Git worktree 并组装 canonical path policy，但尚未实现仓库文件工具、验证执行器或真实模型适配。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
+Milestone 0–2 已完成，项目当前进入 Milestone 3（Real Model MVP）。现有代码已经具备隔离 worktree、受控仓库工具、原生命令沙箱、独立验证、运行产物、资源预算和 Anthropic Messages 适配器。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
 
 ## 快速开始
 
@@ -18,13 +18,25 @@ npm run verify
 npm run dev -- --help
 ```
 
-当前 CLI 提供帮助、版本信息和只读的 `prepare` 命令。`prepare` 会验证 YAML task contract、创建并清理隔离 worktree、组装路径策略，但不会调用模型或执行 task 中的命令：
+`prepare` 会验证 YAML task contract、创建并清理隔离 worktree、组装路径策略，但不会调用模型或执行 task 中的命令：
 
 ```bash
 npm run dev -- prepare --repo ../example-project --issue ./issues/task.yaml
 ```
 
-在完整安全边界和工具实现完成前，CLI 不会执行真实修复任务。
+高级配置入口可以运行真实修复。API key 只从环境读取；模型 ID 和每百万 Token 的 input、output、cache-write、cache-read 美元价格必须显式提供，避免内置价格随供应商变化而失真：
+
+```bash
+export ANTHROPIC_API_KEY=your-key
+
+npm run dev -- run \
+  --repo ../example-project \
+  --issue ./issues/task.yaml \
+  --model your-anthropic-model-id \
+  --pricing input,output,cache-write,cache-read
+```
+
+运行过程只显示公开生命周期和工具进度；最终输出包含状态、产物目录、修改范围以及 Token/成本摘要。默认交互式向导仍在 M3 开发中。
 
 项目的工程约定在以下文档中：
 
