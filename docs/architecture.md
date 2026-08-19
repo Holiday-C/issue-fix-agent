@@ -66,7 +66,7 @@ Owns the central loop, conversation state, stop reasons, budget checks, and fina
 
 ### `src/model/`
 
-Defines the provider-neutral model port and message/tool-call types. Provider adapters translate between these types and an SDK. Translation stays here so provider details cannot spread through the codebase.
+Defines the provider-neutral model port and message/tool-call types. Provider adapters translate messages, tool calls, stop reasons, and usage between these contracts and an SDK. Translation stays here so provider details and credentials cannot spread through the codebase.
 
 ### `src/tools/`
 

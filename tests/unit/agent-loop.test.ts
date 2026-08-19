@@ -29,6 +29,8 @@ describe("runAgentLoop", () => {
         message: { role: "assistant", content: [{ type: "text", text: "Done" }] },
         stopReason: "end_turn",
         toolCalls: [],
+        model: "test-model",
+        usage: emptyUsage,
       },
     ]);
 
@@ -54,11 +56,15 @@ describe("runAgentLoop", () => {
         },
         stopReason: "tool_use",
         toolCalls: [{ type: "tool_use", id: "call-1", name: "echo", input: { text: "hello" } }],
+        model: "test-model",
+        usage: emptyUsage,
       },
       {
         message: { role: "assistant", content: [{ type: "text", text: "Done" }] },
         stopReason: "end_turn",
         toolCalls: [],
+        model: "test-model",
+        usage: emptyUsage,
       },
     ]);
     const tools = new ToolRegistry([
@@ -96,6 +102,8 @@ describe("runAgentLoop", () => {
         message: { role: "assistant", content: [toolCall] },
         stopReason: "tool_use",
         toolCalls: [toolCall],
+        model: "test-model",
+        usage: emptyUsage,
       },
     ]);
 
@@ -137,4 +145,11 @@ describe("runAgentLoop", () => {
       iterations: 1,
     });
   });
+});
+
+const emptyUsage = Object.freeze({
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheCreationInputTokens: 0,
+  cacheReadInputTokens: 0,
 });
