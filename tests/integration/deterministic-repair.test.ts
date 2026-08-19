@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../../src/agent/agent-loop.js";
-import { IterationBudget } from "../../src/agent/budget.js";
+import { ResourceBudget } from "../../src/agent/budget.js";
 import type { AgentOutcome } from "../../src/agent/types.js";
 import { prepareRun } from "../../src/cli/prepare-run.js";
 import type {
@@ -161,7 +161,16 @@ async function runScenario(runId: string, applyFix: boolean): Promise<ScenarioEv
       {
         model,
         tools,
-        budget: new IterationBudget(prepared.task.limits.maxIterations),
+        budget: new ResourceBudget(
+          {
+            maxIterations: prepared.task.limits.maxIterations,
+            maxElapsedMilliseconds: prepared.task.limits.timeoutMinutes * 60_000,
+            maxInputTokens: 1,
+            maxOutputTokens: 1,
+            maxEstimatedCostUsd: 1,
+          },
+          zeroPricing,
+        ),
         trace: artifacts.trace,
       },
     );
@@ -375,4 +384,11 @@ const emptyUsage = Object.freeze({
   outputTokens: 0,
   cacheCreationInputTokens: 0,
   cacheReadInputTokens: 0,
+});
+
+const zeroPricing = Object.freeze({
+  inputUsdPerMillionTokens: 0,
+  outputUsdPerMillionTokens: 0,
+  cacheCreationUsdPerMillionTokens: 0,
+  cacheReadUsdPerMillionTokens: 0,
 });

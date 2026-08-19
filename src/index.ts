@@ -1,5 +1,13 @@
 export { runAgentLoop, type AgentLoopDependencies } from "./agent/agent-loop.js";
-export { IterationBudget, type BudgetPort } from "./agent/budget.js";
+export {
+  ResourceBudget,
+  RESOURCE_BUDGET_CEILINGS,
+  type BudgetExhaustionReason,
+  type BudgetPort,
+  type ModelPricing,
+  type ResourceBudgetLimits,
+  type ResourceUsageSummary,
+} from "./agent/budget.js";
 export type { AgentInput, AgentOutcome } from "./agent/types.js";
 export type {
   ConversationMessage,

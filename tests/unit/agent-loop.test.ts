@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../../src/agent/agent-loop.js";
-import { IterationBudget } from "../../src/agent/budget.js";
-import type { ModelPort, ModelResponse } from "../../src/model/types.js";
+import { ResourceBudget, type ResourceBudgetLimits } from "../../src/agent/budget.js";
+import type { ModelPort, ModelResponse, ModelUsage } from "../../src/model/types.js";
 import { ToolRegistry } from "../../src/tools/tool-registry.js";
-import { NoopTraceSink, type TraceSink } from "../../src/trace/types.js";
+import { NoopTraceSink, type TraceEvent, type TraceSink } from "../../src/trace/types.js";
 
 class SequenceModel implements ModelPort {
+  public calls = 0;
   readonly #responses: ModelResponse[];
 
   public constructor(responses: readonly ModelResponse[]) {
@@ -14,11 +15,21 @@ class SequenceModel implements ModelPort {
   }
 
   public async complete(): Promise<ModelResponse> {
+    this.calls += 1;
     const response = this.#responses.shift();
     if (response === undefined) {
       throw new Error("No fake model response available");
     }
     return Promise.resolve(response);
+  }
+}
+
+class RecordingTrace implements TraceSink {
+  public readonly events: TraceEvent[] = [];
+
+  public record(event: TraceEvent): Promise<void> {
+    this.events.push(event);
+    return Promise.resolve();
   }
 }
 
@@ -30,21 +41,39 @@ describe("runAgentLoop", () => {
         stopReason: "end_turn",
         toolCalls: [],
         model: "test-model",
-        usage: emptyUsage,
+        usage: usage(5, 2),
       },
     ]);
+    const trace = new RecordingTrace();
 
     const outcome = await runAgentLoop(
       { system: "Test", messages: [{ role: "user", content: [{ type: "text", text: "Fix" }] }] },
       {
         model,
         tools: new ToolRegistry([]),
-        budget: new IterationBudget(2),
-        trace: new NoopTraceSink(),
+        budget: createBudget(2),
+        trace,
       },
     );
 
-    expect(outcome).toMatchObject({ status: "completed", reason: "end_turn", iterations: 1 });
+    expect(outcome).toMatchObject({
+      status: "completed",
+      reason: "end_turn",
+      iterations: 1,
+      usage: { inputTokens: 5, outputTokens: 2, models: ["test-model"] },
+    });
+    expect(trace.events).toContainEqual({
+      type: "model_responded",
+      iteration: 1,
+      metadata: {
+        stopReason: "end_turn",
+        toolCalls: 0,
+        model: "test-model",
+        inputTokens: 5,
+        outputTokens: 2,
+        estimatedCostUsd: 0,
+      },
+    });
   });
 
   it("feeds a tool result back to the model", async () => {
@@ -83,7 +112,7 @@ describe("runAgentLoop", () => {
       {
         model,
         tools,
-        budget: new IterationBudget(3),
+        budget: createBudget(3),
         trace: new NoopTraceSink(),
       },
     );
@@ -112,14 +141,14 @@ describe("runAgentLoop", () => {
       {
         model,
         tools: new ToolRegistry([]),
-        budget: new IterationBudget(1),
+        budget: createBudget(1),
         trace: new NoopTraceSink(),
       },
     );
 
     expect(outcome).toMatchObject({
       status: "blocked",
-      reason: "budget_exhausted",
+      reason: "iteration_budget_exhausted",
       iterations: 1,
     });
   });
@@ -134,7 +163,7 @@ describe("runAgentLoop", () => {
       {
         model: new SequenceModel([]),
         tools: new ToolRegistry([]),
-        budget: new IterationBudget(1),
+        budget: createBudget(1),
         trace,
       },
     );
@@ -145,6 +174,52 @@ describe("runAgentLoop", () => {
       iterations: 1,
     });
   });
+
+  it("stops before another model request when the input-token ceiling is reached", async () => {
+    const toolCall = { type: "tool_use" as const, id: "call-1", name: "missing", input: {} };
+    const model = new SequenceModel([
+      {
+        message: { role: "assistant", content: [toolCall] },
+        stopReason: "tool_use",
+        toolCalls: [toolCall],
+        model: "test-model",
+        usage: usage(10, 1),
+      },
+    ]);
+    const budget = createBudget(3, { maxInputTokens: 10 });
+
+    const outcome = await runAgentLoop(
+      { system: "Test", messages: [{ role: "user", content: [{ type: "text", text: "Fix" }] }] },
+      { model, tools: new ToolRegistry([]), budget, trace: new NoopTraceSink() },
+    );
+
+    expect(outcome).toMatchObject({
+      status: "blocked",
+      reason: "input_token_budget_exhausted",
+      usage: { totalInputTokens: 10 },
+    });
+    expect(model.calls).toBe(1);
+  });
+
+  it("returns cancelled without calling the model when the host is already aborted", async () => {
+    const model = new SequenceModel([]);
+    const controller = new AbortController();
+    controller.abort();
+
+    const outcome = await runAgentLoop(
+      { system: "Test", messages: [{ role: "user", content: [{ type: "text", text: "Fix" }] }] },
+      {
+        model,
+        tools: new ToolRegistry([]),
+        budget: createBudget(2),
+        trace: new NoopTraceSink(),
+      },
+      controller.signal,
+    );
+
+    expect(outcome).toMatchObject({ status: "cancelled", reason: "cancelled", iterations: 0 });
+    expect(model.calls).toBe(0);
+  });
 });
 
 const emptyUsage = Object.freeze({
@@ -153,3 +228,31 @@ const emptyUsage = Object.freeze({
   cacheCreationInputTokens: 0,
   cacheReadInputTokens: 0,
 });
+
+const zeroPricing = Object.freeze({
+  inputUsdPerMillionTokens: 0,
+  outputUsdPerMillionTokens: 0,
+  cacheCreationUsdPerMillionTokens: 0,
+  cacheReadUsdPerMillionTokens: 0,
+});
+
+function createBudget(
+  maxIterations: number,
+  overrides: Partial<ResourceBudgetLimits> = {},
+): ResourceBudget {
+  return new ResourceBudget(
+    {
+      maxIterations,
+      maxElapsedMilliseconds: 60_000,
+      maxInputTokens: 1_000,
+      maxOutputTokens: 1_000,
+      maxEstimatedCostUsd: 10,
+      ...overrides,
+    },
+    zeroPricing,
+  );
+}
+
+function usage(inputTokens: number, outputTokens: number): ModelUsage {
+  return Object.freeze({ ...emptyUsage, inputTokens, outputTokens });
+}
