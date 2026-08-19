@@ -91,7 +91,7 @@ If an event cannot be persisted, the Agent returns a failed outcome with `trace_
 
 ### `src/cli/`
 
-Parses arguments, loads configuration, assembles provider-neutral repair context, constructs concrete adapters, handles signals, and maps outcomes to exit codes. It is the only composition root. Repository-provided text remains user-level context and never becomes host authority.
+Parses arguments, loads configuration, assembles provider-neutral repair context, and owns the application runner that composes preparation, tools, model execution, verification, artifacts, and cleanup. It constructs concrete adapters, handles signals, and maps outcomes to exit codes. It is the only composition root. Repository-provided text remains user-level context and never becomes host authority.
 
 ## Dependency Rules
 

@@ -1,5 +1,11 @@
 export type TraceEvent = Readonly<{
-  type: "iteration_started" | "model_responded" | "tool_completed" | "agent_stopped";
+  type:
+    | "iteration_started"
+    | "model_responded"
+    | "tool_completed"
+    | "agent_stopped"
+    | "verification_completed"
+    | "run_completed";
   iteration: number;
   metadata?: Readonly<Record<string, string | number | boolean>>;
 }>;

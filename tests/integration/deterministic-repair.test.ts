@@ -7,27 +7,17 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runAgentLoop } from "../../src/agent/agent-loop.js";
 import { ResourceBudget } from "../../src/agent/budget.js";
 import type { AgentOutcome } from "../../src/agent/types.js";
-import { prepareRun } from "../../src/cli/prepare-run.js";
+import { runRepair, type RepairRunStatus } from "../../src/cli/run-repair.js";
 import type {
   ModelPort,
   ModelRequest,
   ModelResponse,
   ToolUseBlock,
 } from "../../src/model/types.js";
-import { CommandPolicy } from "../../src/permissions/command-policy.js";
-import { SandboxRuntimeAdapter } from "../../src/process/sandbox-runtime-adapter.js";
-import type { TaskContract } from "../../src/task/task-contract.js";
-import { createCommandTool } from "../../src/tools/command-tool.js";
-import { createRepositoryDiscoveryTools } from "../../src/tools/repository-discovery.js";
-import { createRepositoryMutationTools } from "../../src/tools/repository-mutation.js";
-import { ToolRegistry } from "../../src/tools/tool-registry.js";
-import type { ToolResult } from "../../src/tools/types.js";
-import { createRunArtifacts } from "../../src/trace/run-artifacts.js";
+import type { ProcessPort, ProcessResult } from "../../src/process/types.js";
 import type { VerificationReport } from "../../src/verification/verification-runner.js";
-import { runVerification } from "../../src/verification/verification-runner.js";
 
 const execFile = promisify(execFileCallback);
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -85,6 +75,8 @@ describe.skipIf(process.platform !== "darwin")("deterministic fixture repair", (
       "verification.json",
     ]);
     expect(evidence.trace).toContain('"type":"tool_completed"');
+    expect(evidence.trace).toContain('"type":"run_completed"');
+    expect(evidence.result).toContain("Verification: passed");
   }, 20_000);
 
   it("fails when the scripted model stops without repairing the fixture", async () => {
@@ -102,8 +94,48 @@ describe.skipIf(process.platform !== "darwin")("deterministic fixture repair", (
   }, 20_000);
 });
 
+describe("repair runner failure handling", () => {
+  it("returns blocked and cleans the worktree when the sandbox is unavailable", async () => {
+    const setup = await createFixtureRepository();
+    const model = new ScriptedModel([endTurn("Should not run")]);
+
+    const run = await runRepair(
+      {
+        ...setup.input,
+        runId: "sandbox-unavailable",
+        model,
+        budget: createBudget(),
+      },
+      { createProcess: () => Promise.reject(new Error("sandbox unavailable")) },
+    );
+
+    expect(run).toMatchObject({ status: "blocked", reason: "sandbox_unavailable", agent: null });
+    expect(await git(setup.repository, ["status", "--short"])).toBe("");
+    expect(model.calls).toBe(0);
+  });
+
+  it("never reports success when process cleanup fails", async () => {
+    const setup = await createFixtureRepository();
+    const model = new ScriptedModel([endTurn("Done")]);
+    const process = new FailingCleanupProcess();
+
+    const run = await runRepair(
+      {
+        ...setup.input,
+        runId: "cleanup-failure",
+        model,
+        budget: createBudget(),
+      },
+      { createProcess: () => Promise.resolve(process) },
+    );
+
+    expect(run).toMatchObject({ status: "failed", reason: "cleanup_failed" });
+    expect(await git(setup.repository, ["status", "--short"])).toBe("");
+  });
+});
+
 type ScenarioEvidence = Readonly<{
-  outcome: "succeeded" | "failed" | "blocked";
+  outcome: RepairRunStatus;
   agent: AgentOutcome;
   verification: VerificationReport;
   patch: string;
@@ -124,102 +156,38 @@ async function runScenario(runId: string, applyFix: boolean): Promise<ScenarioEv
   await mkdir(worktrees);
   await initializeRepository(repository);
   const sourceHeadBefore = await git(repository, ["rev-parse", "HEAD"]);
-  const prepared = await prepareRun({
+  const model = new ScriptedModel(applyFix ? successfulScript() : [endTurn("No change needed")]);
+  const run = await runRepair({
     repositoryPath: repository,
     taskPath,
     temporaryDirectory: worktrees,
+    runId,
+    model,
+    budget: new ResourceBudget(
+      {
+        maxIterations: 8,
+        maxElapsedMilliseconds: 60_000,
+        maxInputTokens: 1,
+        maxOutputTokens: 1,
+        maxEstimatedCostUsd: 1,
+      },
+      zeroPricing,
+    ),
   });
-  const artifacts = await createRunArtifacts(prepared.repositoryRoot, { runId });
-  await artifacts.writeTask(prepared.task);
-
-  const commandPolicy = new CommandPolicy(
-    prepared.pathPolicy,
-    allowedVerificationCommands(prepared.task),
-  );
-  const process = await SandboxRuntimeAdapter.create(prepared.worktreeRoot);
-  let agent: AgentOutcome;
-  let verification: VerificationReport;
-  let diffResult: ToolResult;
-
-  try {
-    const tools = new ToolRegistry([
-      ...createRepositoryDiscoveryTools(prepared.pathPolicy),
-      ...createRepositoryMutationTools(prepared.pathPolicy),
-      createCommandTool(commandPolicy, process),
-    ]);
-    const model = new ScriptedModel(applyFix ? successfulScript() : [endTurn("No change needed")]);
-    agent = await runAgentLoop(
-      {
-        system: "Repair only the scoped fixture and use the provided tools.",
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: prepared.task.description }],
-          },
-        ],
-      },
-      {
-        model,
-        tools,
-        budget: new ResourceBudget(
-          {
-            maxIterations: prepared.task.limits.maxIterations,
-            maxElapsedMilliseconds: prepared.task.limits.timeoutMinutes * 60_000,
-            maxInputTokens: 1,
-            maxOutputTokens: 1,
-            maxEstimatedCostUsd: 1,
-          },
-          zeroPricing,
-        ),
-        trace: artifacts.trace,
-      },
-    );
-    verification = await runVerification({
-      task: prepared.task,
-      worktreeRoot: prepared.worktreeRoot,
-      commands: commandPolicy,
-      process,
-    });
-    diffResult = await tools.execute({
-      type: "tool_use",
-      id: "final-diff",
-      name: "git_diff",
-      input: { maxBytes: 32 * 1024 },
-    });
-  } finally {
-    await process.close();
+  if (run.agent === null || run.verification === null || run.artifactDirectory === null) {
+    throw new Error(`Scenario did not produce complete evidence: ${run.reason}`);
   }
-
-  const diff = parseJsonObject(diffResult.content);
-  const patch = typeof diff["diff"] === "string" ? diff["diff"] : "";
-  const scopeCompliant =
-    !diffResult.isError &&
-    diff["truncated"] === false &&
-    typeof diff["filesChanged"] === "number" &&
-    diff["filesChanged"] <= prepared.task.limits.maxChangedFiles;
-  const outcome = finalOutcome(agent, verification, scopeCompliant);
-  const result = [
-    `# Deterministic repair`,
-    ``,
-    `Outcome: ${outcome}`,
-    `Agent: ${agent.status} (${agent.reason})`,
-    `Verification: ${verification.verdict}`,
-    `Scope compliant: ${String(scopeCompliant)}`,
-    ``,
-  ].join("\n");
-  await artifacts.writeVerification(verification);
-  await artifacts.writePatch(patch);
-  await artifacts.writeResult(result);
-  await prepared.cleanup();
+  const patch = await readFile(join(run.artifactDirectory, "changes.patch"), "utf8");
+  const result = await readFile(join(run.artifactDirectory, "result.md"), "utf8");
 
   return Object.freeze({
-    outcome,
-    agent,
-    verification,
+    outcome: run.status,
+    agent: run.agent,
+    verification: run.verification,
     patch,
     result,
-    trace: await readFile(join(artifacts.runDirectory, "trace.jsonl"), "utf8"),
-    artifactFiles: Object.freeze((await readdir(artifacts.runDirectory)).sort()),
+    trace: await readFile(join(run.artifactDirectory, "trace.jsonl"), "utf8"),
+    artifactFiles: Object.freeze((await readdir(run.artifactDirectory)).sort()),
     sourceHeadBefore,
     sourceHeadAfter: await git(repository, ["rev-parse", "HEAD"]),
     sourceStatus: await git(repository, ["status", "--short"]),
@@ -228,6 +196,7 @@ async function runScenario(runId: string, applyFix: boolean): Promise<ScenarioEv
 }
 
 class ScriptedModel implements ModelPort {
+  public calls = 0;
   readonly #responses: ModelResponse[];
   #index = 0;
 
@@ -236,6 +205,7 @@ class ScriptedModel implements ModelPort {
   }
 
   public async complete(request: ModelRequest): Promise<ModelResponse> {
+    this.calls += 1;
     const response = this.#responses[this.#index];
     if (response === undefined) throw new Error("Scripted model exhausted its responses");
     if (this.#index === 0) {
@@ -248,6 +218,25 @@ class ScriptedModel implements ModelPort {
     }
     this.#index += 1;
     return Promise.resolve(response);
+  }
+}
+
+class FailingCleanupProcess implements ProcessPort {
+  public run(): Promise<ProcessResult> {
+    return Promise.resolve({
+      outcome: "completed",
+      exitCode: 1,
+      durationMilliseconds: 1,
+      stdout: "",
+      stderr: "fixture failed",
+      stdoutTruncated: false,
+      stderrTruncated: false,
+      sandboxViolation: false,
+    });
+  }
+
+  public close(): Promise<void> {
+    return Promise.reject(new Error("cleanup failed"));
   }
 }
 
@@ -296,17 +285,6 @@ function endTurn(text: string): ModelResponse {
   });
 }
 
-function finalOutcome(
-  agent: AgentOutcome,
-  verification: VerificationReport,
-  scopeCompliant: boolean,
-): ScenarioEvidence["outcome"] {
-  if (agent.status === "blocked") return "blocked";
-  return agent.status === "completed" && verification.verdict === "passed" && scopeCompliant
-    ? "succeeded"
-    : "failed";
-}
-
 function parseToolResult(
   outcome: AgentOutcome,
   toolUseId: string,
@@ -329,17 +307,6 @@ function parseJsonObject(source: string): Readonly<Record<string, unknown>> {
   return value as Readonly<Record<string, unknown>>;
 }
 
-function allowedVerificationCommands(
-  task: TaskContract,
-): readonly Readonly<{ executable: "node"; args: readonly string[] }>[] {
-  return task.verification.map((command) => {
-    if (command.executable !== "node") {
-      throw new Error("The deterministic fixture requires Node verification commands");
-    }
-    return Object.freeze({ executable: "node" as const, args: command.args });
-  });
-}
-
 async function initializeRepository(repository: string): Promise<void> {
   await git(repository, ["init", "--quiet"]);
   await git(repository, ["add", "."]);
@@ -353,6 +320,24 @@ async function initializeRepository(repository: string): Promise<void> {
     "-m",
     "initial fixture",
   ]);
+}
+
+async function createFixtureRepository(): Promise<
+  Readonly<{
+    repository: string;
+    input: Readonly<{ repositoryPath: string; taskPath: string; temporaryDirectory: string }>;
+  }>
+> {
+  const testRoot = await createTemporaryDirectory();
+  const repository = join(testRoot, "repository");
+  const worktrees = join(testRoot, "worktrees");
+  await cp(fixtureDirectory, repository, { recursive: true });
+  await mkdir(worktrees);
+  await initializeRepository(repository);
+  return Object.freeze({
+    repository,
+    input: Object.freeze({ repositoryPath: repository, taskPath, temporaryDirectory: worktrees }),
+  });
 }
 
 async function createTemporaryDirectory(): Promise<string> {
@@ -392,3 +377,16 @@ const zeroPricing = Object.freeze({
   cacheCreationUsdPerMillionTokens: 0,
   cacheReadUsdPerMillionTokens: 0,
 });
+
+function createBudget(): ResourceBudget {
+  return new ResourceBudget(
+    {
+      maxIterations: 8,
+      maxElapsedMilliseconds: 60_000,
+      maxInputTokens: 1,
+      maxOutputTokens: 1,
+      maxEstimatedCostUsd: 1,
+    },
+    zeroPricing,
+  );
+}
