@@ -62,7 +62,7 @@ This is not a clean-architecture ceremony. Ports exist only at nondeterministic,
 
 ### `src/agent/`
 
-Owns the central loop, conversation state, stop reasons, budget checks, and final outcome. It coordinates contracts and must not directly access the filesystem, spawn processes, read environment variables, or import a provider SDK.
+Owns the central loop, conversation state, stop reasons, host cancellation, resource-budget checks, and final outcome. It consumes provider-reported usage and exposes a bounded summary, but must not directly access the filesystem, spawn processes, read environment variables, or import a provider SDK.
 
 ### `src/model/`
 

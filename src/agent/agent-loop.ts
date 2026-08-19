@@ -14,31 +14,67 @@ export type AgentLoopDependencies = Readonly<{
 export async function runAgentLoop(
   input: AgentInput,
   dependencies: AgentLoopDependencies,
+  signal?: AbortSignal,
 ): Promise<AgentOutcome> {
   const messages = [...input.messages];
 
+  if (signalIsAborted(signal)) {
+    return stop("cancelled", "cancelled", messages, dependencies, 0);
+  }
+
   while (dependencies.budget.canStartIteration()) {
-    dependencies.budget.recordIteration();
+    try {
+      dependencies.budget.recordIteration();
+    } catch {
+      break;
+    }
     const iteration = dependencies.budget.iterationsUsed();
     if (!(await recordTrace(dependencies.trace, { type: "iteration_started", iteration }))) {
-      return traceFailure(messages, iteration);
+      return traceFailure(messages, iteration, dependencies.budget.summary());
     }
 
-    const response = await dependencies.model.complete({
-      system: input.system,
-      messages,
-      tools: dependencies.tools.definitions(),
-    });
+    let response: Awaited<ReturnType<ModelPort["complete"]>>;
+    try {
+      response = await dependencies.model.complete(
+        {
+          system: input.system,
+          messages,
+          tools: dependencies.tools.definitions(),
+        },
+        signal,
+      );
+    } catch (error: unknown) {
+      if (signalIsAborted(signal)) {
+        return stop("cancelled", "cancelled", messages, dependencies, iteration);
+      }
+      throw error;
+    }
+    if (signalIsAborted(signal)) {
+      return stop("cancelled", "cancelled", messages, dependencies, iteration);
+    }
 
     messages.push(response.message);
+    try {
+      dependencies.budget.recordUsage(response.model, response.usage);
+    } catch {
+      return stop("failed", "invalid_model_response", messages, dependencies, iteration);
+    }
+    const usage = dependencies.budget.summary();
     if (
       !(await recordTrace(dependencies.trace, {
         type: "model_responded",
         iteration,
-        metadata: { stopReason: response.stopReason, toolCalls: response.toolCalls.length },
+        metadata: {
+          stopReason: response.stopReason,
+          toolCalls: response.toolCalls.length,
+          model: response.model,
+          inputTokens: usage.totalInputTokens,
+          outputTokens: usage.outputTokens,
+          estimatedCostUsd: usage.estimatedCostUsd,
+        },
       }))
     ) {
-      return traceFailure(messages, iteration);
+      return traceFailure(messages, iteration, dependencies.budget.summary());
     }
 
     if (response.stopReason === "end_turn") {
@@ -70,7 +106,7 @@ export async function runAgentLoop(
           metadata: { tool: call.name, isError: result.isError },
         }))
       ) {
-        return traceFailure(messages, iteration);
+        return traceFailure(messages, iteration, dependencies.budget.summary());
       }
     }
 
@@ -78,7 +114,13 @@ export async function runAgentLoop(
   }
 
   const iteration = dependencies.budget.iterationsUsed();
-  return stop("blocked", "budget_exhausted", messages, dependencies, iteration);
+  return stop(
+    "blocked",
+    dependencies.budget.exhaustionReason() ?? "iteration_budget_exhausted",
+    messages,
+    dependencies,
+    iteration,
+  );
 }
 
 async function stop(
@@ -95,10 +137,16 @@ async function stop(
       metadata: { status, reason },
     }))
   ) {
-    return traceFailure(messages, iteration);
+    return traceFailure(messages, iteration, dependencies.budget.summary());
   }
 
-  return { status, reason, iterations: iteration, messages };
+  return {
+    status,
+    reason,
+    iterations: iteration,
+    messages,
+    usage: dependencies.budget.summary(),
+  };
 }
 
 async function recordTrace(
@@ -113,6 +161,14 @@ async function recordTrace(
   }
 }
 
-function traceFailure(messages: AgentOutcome["messages"], iteration: number): AgentOutcome {
-  return { status: "failed", reason: "trace_write_failed", iterations: iteration, messages };
+function traceFailure(
+  messages: AgentOutcome["messages"],
+  iteration: number,
+  usage: AgentOutcome["usage"],
+): AgentOutcome {
+  return { status: "failed", reason: "trace_write_failed", iterations: iteration, messages, usage };
+}
+
+function signalIsAborted(signal?: AbortSignal): boolean {
+  return signal?.aborted === true;
 }
