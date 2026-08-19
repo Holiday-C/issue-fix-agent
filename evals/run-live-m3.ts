@@ -90,6 +90,7 @@ async function main(): Promise<number> {
   const report = Object.freeze({
     complete,
     model: config.model,
+    baseURL: config.baseURL ?? null,
     pricing: config.pricing,
     maxCostUsdPerRun: config.maxCostUsd,
     runs: Object.freeze(summaries),
@@ -136,8 +137,10 @@ async function assertSecretAbsent(
   stdout: string,
   stderr: string,
 ): Promise<void> {
-  const secret = process.env["ANTHROPIC_API_KEY"];
-  if (typeof secret !== "string" || secret.length === 0) return;
+  const secrets = [process.env["ANTHROPIC_AUTH_TOKEN"], process.env["ANTHROPIC_API_KEY"]].filter(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  );
+  if (secrets.length === 0) return;
   const sources = [stdout, stderr];
   for (const name of [
     "task.yaml",
@@ -148,7 +151,7 @@ async function assertSecretAbsent(
   ]) {
     sources.push(await readFile(join(artifactDirectory, name), "utf8"));
   }
-  if (sources.some((source) => source.includes(secret))) {
+  if (sources.some((source) => secrets.some((secret) => source.includes(secret)))) {
     throw new Error("Credential disclosure detected in live evaluation evidence");
   }
 }

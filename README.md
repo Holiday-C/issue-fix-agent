@@ -31,6 +31,17 @@ export ANTHROPIC_API_KEY=your-key
 npm run dev
 ```
 
+Anthropic Messages 兼容网关可以改用 bearer token 与自定义地址：
+
+```bash
+export ANTHROPIC_BASE_URL='https://your-gateway.example'
+export ANTHROPIC_AUTH_TOKEN='your-token'
+export ANTHROPIC_MODEL='qwen3.8-max-preview[1m]'
+npm run dev
+```
+
+不要同时依赖两种凭据；如果环境中两者都存在，显式的 `ANTHROPIC_AUTH_TOKEN` 优先。自定义地址必须实现 Anthropic `/v1/messages` 协议。OpenAI 兼容协议由独立 adapter 提供，不会根据 URL 自动猜测。
+
 可以通过 `ANTHROPIC_MODEL` 和 `ANTHROPIC_PRICING` 为向导提供模型与价格默认值。价格顺序是每百万 Token 的 input、output、cache-write、cache-read 美元单价。
 
 高级配置入口适合自动化和复现。模型 ID 与价格必须显式提供，避免内置价格随供应商变化而失真：

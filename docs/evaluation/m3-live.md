@@ -26,6 +26,17 @@ export ISSUE_FIX_LIVE_EVAL=1
 npm run eval:m3
 ```
 
+For an Anthropic Messages-compatible gateway, replace the API key with:
+
+```bash
+export ANTHROPIC_BASE_URL=your-gateway-base-url
+export ANTHROPIC_AUTH_TOKEN=your-token
+export ANTHROPIC_MODEL='qwen3.8-max-preview[1m]'
+```
+
+The gateway must implement the Anthropic `/v1/messages` wire format. Do not use
+an OpenAI-compatible chat URL with this adapter.
+
 Optional controls:
 
 - `ISSUE_FIX_MAX_COST_USD`: per-run estimated cost ceiling;

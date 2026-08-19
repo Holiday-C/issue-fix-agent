@@ -56,7 +56,9 @@ Options:
       --max-cost-usd <n>        Estimated run-cost ceiling (default: 5)
 
 Environment:
-  ANTHROPIC_API_KEY             Required only by the run command
+  ANTHROPIC_AUTH_TOKEN          Bearer token for an Anthropic-compatible gateway
+  ANTHROPIC_BASE_URL            Optional Anthropic-compatible gateway URL
+  ANTHROPIC_API_KEY             Official Anthropic API key fallback
   ANTHROPIC_MODEL               Optional interactive model default
   ANTHROPIC_PRICING             Optional interactive pricing default
 
@@ -286,8 +288,8 @@ async function runInteractiveRepair(
     io.stderr.write("error: interactive terminal required; use `issue-fix run` for automation\n");
     return 2;
   }
-  if (!hasApiKey(dependencies.environment)) {
-    io.stderr.write("error: ANTHROPIC_API_KEY is required\n");
+  if (anthropicAuthentication(dependencies.environment) === undefined) {
+    io.stderr.write("error: ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required\n");
     return 3;
   }
 
@@ -344,9 +346,9 @@ async function executeRepair(
   dependencies: CliDependencies,
   signal?: AbortSignal,
 ): Promise<number> {
-  const apiKey = dependencies.environment["ANTHROPIC_API_KEY"];
-  if (!hasApiKey(dependencies.environment) || apiKey === undefined) {
-    io.stderr.write("error: ANTHROPIC_API_KEY is required\n");
+  const authentication = anthropicAuthentication(dependencies.environment);
+  if (authentication === undefined) {
+    io.stderr.write("error: ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required\n");
     return 3;
   }
 
@@ -364,7 +366,7 @@ async function executeRepair(
       configuration.pricing,
     );
     const model = dependencies.createModel({
-      apiKey,
+      ...authentication,
       model: configuration.modelId,
       maxTokens: configuration.maxModelTokens,
       timeoutMilliseconds: Math.min(maximumElapsed, 120_000),
@@ -395,9 +397,23 @@ async function executeRepair(
   }
 }
 
-function hasApiKey(environment: CliEnvironment): boolean {
-  const value = environment["ANTHROPIC_API_KEY"];
-  return typeof value === "string" && value.trim().length > 0;
+function anthropicAuthentication(
+  environment: CliEnvironment,
+): Readonly<{ apiKey?: string; authToken?: string; baseURL?: string }> | undefined {
+  const authToken = environment["ANTHROPIC_AUTH_TOKEN"]?.trim();
+  const apiKey = environment["ANTHROPIC_API_KEY"]?.trim();
+  const baseURL = environment["ANTHROPIC_BASE_URL"]?.trim();
+  const credential =
+    authToken !== undefined && authToken.length > 0
+      ? { authToken }
+      : apiKey !== undefined && apiKey.length > 0
+        ? { apiKey }
+        : undefined;
+  if (credential === undefined) return undefined;
+  return Object.freeze({
+    ...credential,
+    ...(baseURL === undefined || baseURL.length === 0 ? {} : { baseURL }),
+  });
 }
 
 function parsePricing(source: unknown): ModelPricing | undefined {
