@@ -122,7 +122,7 @@ execution context before any model call or task-configured command can occur.
 
 ## M2 — Deterministic Repair
 
-**Status:** In progress
+**Status:** Complete
 
 **GitHub milestone:** [M2 — Deterministic Repair](https://github.com/Holiday-C/issue-fix-agent/milestone/2)
 

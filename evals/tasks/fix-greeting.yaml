@@ -1,0 +1,13 @@
+title: Fix the greeting typo
+description: The greeting helper misspells Hello. Correct the implementation without changing its API.
+acceptance_criteria:
+  - greet("Ada") returns "Hello, Ada!"
+allowed_paths:
+  - src/greeting.js
+verification:
+  - executable: node
+    args: [--test, test/greeting.test.js]
+limits:
+  max_iterations: 8
+  max_changed_files: 1
+  timeout_minutes: 1
