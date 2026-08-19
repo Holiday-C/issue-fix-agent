@@ -1,4 +1,7 @@
 import { parseArgs } from "node:util";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { ResourceBudget, RESOURCE_BUDGET_CEILINGS, type ModelPricing } from "../agent/budget.js";
 import {
@@ -12,6 +15,15 @@ import type { TraceEvent } from "../trace/types.js";
 import { WorkspaceError } from "../workspace/git-worktree.js";
 import { loadTaskFile, prepareRun, RunPreparationError } from "./prepare-run.js";
 import { runRepair, type RepairRunResult } from "./run-repair.js";
+import {
+  collectWizardPlan,
+  createReadlinePrompt,
+  defaultWizardDiscovery,
+  serializeWizardTask,
+  WizardInputError,
+  type PromptPort,
+  type WizardDiscoveryPort,
+} from "./wizard.js";
 
 const VERSION = "0.1.0";
 const DEFAULT_MAX_INPUT_TOKENS = 200_000;
@@ -27,6 +39,7 @@ Usage:
   issue-fix run --repo <path> --issue <task.yaml> --model <id> --pricing <in,out,cache-write,cache-read>
 
 Commands:
+  (no command)       Start the interactive repair wizard
   prepare            Validate a task and repository in an isolated worktree
   run                Run a verified candidate repair with Anthropic
 
@@ -44,6 +57,8 @@ Options:
 
 Environment:
   ANTHROPIC_API_KEY             Required only by the run command
+  ANTHROPIC_MODEL               Optional interactive model default
+  ANTHROPIC_PRICING             Optional interactive pricing default
 
 Exit codes:
   0 succeeded, 1 failed, 2 usage error, 3 blocked, 130 cancelled
@@ -64,6 +79,12 @@ export type CliDependencies = Readonly<{
   run: typeof runRepair;
   createModel(options: AnthropicModelOptions): ModelPort;
   environment: CliEnvironment;
+  wizard?: Readonly<{
+    isInteractive(): boolean;
+    createPrompt(): PromptPort;
+    currentDirectory(): string;
+    discovery: WizardDiscoveryPort;
+  }>;
 }>;
 
 const defaultDependencies: CliDependencies = Object.freeze({
@@ -72,6 +93,12 @@ const defaultDependencies: CliDependencies = Object.freeze({
   run: runRepair,
   createModel: (options) => new AnthropicMessagesAdapter(options),
   environment: process.env,
+  wizard: Object.freeze({
+    isInteractive: () => process.stdin.isTTY === true && process.stderr.isTTY === true,
+    createPrompt: () => createReadlinePrompt(process.stdin, process.stderr),
+    currentDirectory: () => process.cwd(),
+    discovery: defaultWizardDiscovery,
+  }),
 });
 
 export async function runCli(
@@ -109,9 +136,12 @@ export async function runCli(
     io.stdout.write(`${VERSION}\n`);
     return 0;
   }
-  if (parsed.values["help"] === true || parsed.positionals.length === 0) {
+  if (parsed.values["help"] === true) {
     io.stdout.write(HELP);
     return 0;
+  }
+  if (parsed.positionals.length === 0) {
+    return runInteractiveRepair(io, dependencies, signal);
   }
   if (parsed.positionals.length !== 1) {
     io.stderr.write("error: unknown command\n");
@@ -184,12 +214,6 @@ async function runConfiguredRepair(
     return 2;
   }
 
-  const apiKey = dependencies.environment["ANTHROPIC_API_KEY"];
-  if (typeof apiKey !== "string" || apiKey.trim().length === 0) {
-    io.stderr.write("error: ANTHROPIC_API_KEY is required\n");
-    return 3;
-  }
-
   const maxModelTokens = positiveNumberOption(
     values["max-model-tokens"],
     DEFAULT_MAX_MODEL_TOKENS,
@@ -224,27 +248,129 @@ async function runConfiguredRepair(
     return 2;
   }
 
+  return executeRepair(
+    {
+      repositoryPath,
+      taskPath,
+      modelId,
+      pricing,
+      maxModelTokens,
+      maxInputTokens,
+      maxOutputTokens,
+      maxCostUsd,
+    },
+    io,
+    dependencies,
+    signal,
+  );
+}
+
+type RepairCommandConfiguration = Readonly<{
+  repositoryPath: string;
+  taskPath: string;
+  modelId: string;
+  pricing: ModelPricing;
+  maxModelTokens: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  maxCostUsd: number;
+}>;
+
+async function runInteractiveRepair(
+  io: CliIo,
+  dependencies: CliDependencies,
+  signal?: AbortSignal,
+): Promise<number> {
+  const wizard = dependencies.wizard;
+  if (wizard === undefined || !wizard.isInteractive()) {
+    io.stderr.write("error: interactive terminal required; use `issue-fix run` for automation\n");
+    return 2;
+  }
+  if (!hasApiKey(dependencies.environment)) {
+    io.stderr.write("error: ANTHROPIC_API_KEY is required\n");
+    return 3;
+  }
+
+  const prompt = wizard.createPrompt();
+  let plan: Awaited<ReturnType<typeof collectWizardPlan>>;
   try {
-    const loaded = await dependencies.loadTask(taskPath);
+    plan = await collectWizardPlan(prompt, wizard.discovery, {
+      currentDirectory: wizard.currentDirectory(),
+      ...(dependencies.environment["ANTHROPIC_MODEL"] === undefined
+        ? {}
+        : { model: dependencies.environment["ANTHROPIC_MODEL"] }),
+      ...(dependencies.environment["ANTHROPIC_PRICING"] === undefined
+        ? {}
+        : { pricing: dependencies.environment["ANTHROPIC_PRICING"] }),
+    });
+  } catch (error: unknown) {
+    if (error instanceof WizardInputError) {
+      io.stderr.write(`error: ${error.message}\n`);
+      return error.code === "cancelled" ? 130 : 2;
+    }
+    io.stderr.write("error: interactive setup failed\n");
+    return 2;
+  } finally {
+    prompt.close();
+  }
+
+  const directory = await mkdtemp(join(tmpdir(), "issue-fix-wizard-"));
+  const taskPath = join(directory, "task.yaml");
+  try {
+    await writeFile(taskPath, serializeWizardTask(plan.task), { encoding: "utf8", flag: "wx" });
+    return await executeRepair(
+      {
+        repositoryPath: plan.repositoryPath,
+        taskPath,
+        modelId: plan.model,
+        pricing: plan.pricing,
+        maxModelTokens: DEFAULT_MAX_MODEL_TOKENS,
+        maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
+        maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+        maxCostUsd: plan.maxCostUsd,
+      },
+      io,
+      dependencies,
+      signal,
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function executeRepair(
+  configuration: RepairCommandConfiguration,
+  io: CliIo,
+  dependencies: CliDependencies,
+  signal?: AbortSignal,
+): Promise<number> {
+  const apiKey = dependencies.environment["ANTHROPIC_API_KEY"];
+  if (!hasApiKey(dependencies.environment) || apiKey === undefined) {
+    io.stderr.write("error: ANTHROPIC_API_KEY is required\n");
+    return 3;
+  }
+
+  try {
+    const loaded = await dependencies.loadTask(configuration.taskPath);
     const maximumElapsed = loaded.task.limits.timeoutMinutes * 60_000;
     const budget = new ResourceBudget(
       {
         maxIterations: loaded.task.limits.maxIterations,
         maxElapsedMilliseconds: maximumElapsed,
-        maxInputTokens,
-        maxOutputTokens,
-        maxEstimatedCostUsd: maxCostUsd,
+        maxInputTokens: configuration.maxInputTokens,
+        maxOutputTokens: configuration.maxOutputTokens,
+        maxEstimatedCostUsd: configuration.maxCostUsd,
       },
-      pricing,
+      configuration.pricing,
     );
     const model = dependencies.createModel({
       apiKey,
-      model: modelId,
-      maxTokens: maxModelTokens,
+      model: configuration.modelId,
+      maxTokens: configuration.maxModelTokens,
       timeoutMilliseconds: Math.min(maximumElapsed, 120_000),
     });
     const result = await dependencies.run({
-      repositoryPath,
+      repositoryPath: configuration.repositoryPath,
       taskPath: loaded.taskPath,
       model,
       budget,
@@ -267,6 +393,11 @@ async function runConfiguredRepair(
     io.stderr.write("error: repair run failed unexpectedly\n");
     return 1;
   }
+}
+
+function hasApiKey(environment: CliEnvironment): boolean {
+  const value = environment["ANTHROPIC_API_KEY"];
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function parsePricing(source: unknown): ModelPricing | undefined {

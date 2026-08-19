@@ -24,7 +24,16 @@ npm run dev -- --help
 npm run dev -- prepare --repo ../example-project --issue ./issues/task.yaml
 ```
 
-高级配置入口可以运行真实修复。API key 只从环境读取；模型 ID 和每百万 Token 的 input、output、cache-write、cache-read 美元价格必须显式提供，避免内置价格随供应商变化而失真：
+默认入口是交互式向导。API key 只从环境读取；向导会检测当前 Git 仓库并建议写入范围与 Node 验证命令，最终执行前会完整展示并确认：
+
+```bash
+export ANTHROPIC_API_KEY=your-key
+npm run dev
+```
+
+可以通过 `ANTHROPIC_MODEL` 和 `ANTHROPIC_PRICING` 为向导提供模型与价格默认值。价格顺序是每百万 Token 的 input、output、cache-write、cache-read 美元单价。
+
+高级配置入口适合自动化和复现。模型 ID 与价格必须显式提供，避免内置价格随供应商变化而失真：
 
 ```bash
 export ANTHROPIC_API_KEY=your-key
@@ -36,7 +45,7 @@ npm run dev -- run \
   --pricing input,output,cache-write,cache-read
 ```
 
-运行过程只显示公开生命周期和工具进度；最终输出包含状态、产物目录、修改范围以及 Token/成本摘要。默认交互式向导仍在 M3 开发中。
+运行过程只显示公开生命周期和工具进度；最终输出包含状态、产物目录、修改范围以及 Token/成本摘要。非交互终端必须使用配置化 `run` 入口。
 
 项目的工程约定在以下文档中：
 
