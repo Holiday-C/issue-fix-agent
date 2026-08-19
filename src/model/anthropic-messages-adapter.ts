@@ -24,19 +24,35 @@ const MAX_TOOL_INPUT_BYTES = 256 * 1024;
 const MAX_COLLECTION_ITEMS = 1_000;
 const MAX_JSON_DEPTH = 20;
 
-const optionsSchema = z.strictObject({
-  apiKey: z.string().trim().min(1).max(10_000),
-  model: z.string().trim().min(1).max(200),
-  maxTokens: z.int().min(1).max(64_000),
-  timeoutMilliseconds: z
-    .int()
-    .min(1)
-    .max(10 * 60_000)
-    .default(120_000),
-});
+const optionsSchema = z
+  .strictObject({
+    apiKey: z.string().trim().min(1).max(10_000).optional(),
+    authToken: z.string().trim().min(1).max(10_000).optional(),
+    baseURL: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2_000)
+      .refine(validBaseURL, "Base URL must be an HTTP(S) URL without embedded credentials")
+      .optional(),
+    model: z.string().trim().min(1).max(200),
+    maxTokens: z.int().min(1).max(64_000),
+    timeoutMilliseconds: z
+      .int()
+      .min(1)
+      .max(10 * 60_000)
+      .default(120_000),
+  })
+  .superRefine((value, context) => {
+    if (value.apiKey === undefined && value.authToken === undefined) {
+      context.addIssue({ code: "custom", message: "An API key or auth token is required" });
+    }
+  });
 
 export type AnthropicModelOptions = Readonly<{
-  apiKey: string;
+  apiKey?: string;
+  authToken?: string;
+  baseURL?: string;
   model: string;
   maxTokens: number;
   timeoutMilliseconds?: number;
@@ -84,7 +100,24 @@ export class AnthropicMessagesAdapter implements ModelPort {
     this.#model = parsed.data.model;
     this.#maxTokens = parsed.data.maxTokens;
     this.#timeoutMilliseconds = parsed.data.timeoutMilliseconds;
-    this.#client = client ?? new SdkAnthropicClient(parsed.data.apiKey);
+    const authentication =
+      parsed.data.authToken !== undefined
+        ? { authToken: parsed.data.authToken }
+        : parsed.data.apiKey !== undefined
+          ? { apiKey: parsed.data.apiKey }
+          : undefined;
+    if (authentication === undefined) {
+      throw new AnthropicModelError(
+        "invalid_configuration",
+        "Anthropic model configuration is invalid",
+      );
+    }
+    this.#client =
+      client ??
+      new SdkAnthropicClient({
+        ...authentication,
+        ...(parsed.data.baseURL === undefined ? {} : { baseURL: parsed.data.baseURL }),
+      });
   }
 
   public async complete(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse> {
@@ -114,14 +147,34 @@ export class AnthropicMessagesAdapter implements ModelPort {
 class SdkAnthropicClient implements AnthropicClientPort {
   readonly #client: Anthropic;
 
-  public constructor(apiKey: string) {
-    this.#client = new Anthropic({ apiKey, maxRetries: 0 });
+  public constructor(options: Readonly<{ apiKey?: string; authToken?: string; baseURL?: string }>) {
+    this.#client = new Anthropic({
+      apiKey: options.apiKey ?? null,
+      authToken: options.authToken ?? null,
+      ...(options.baseURL === undefined ? {} : { baseURL: options.baseURL }),
+      maxRetries: 0,
+    });
   }
 
   public async createMessage(request: unknown, signal: AbortSignal): Promise<unknown> {
     return this.#client.messages.create(request as Anthropic.MessageCreateParamsNonStreaming, {
       signal,
     });
+  }
+}
+
+function validBaseURL(source: string): boolean {
+  try {
+    const value = new URL(source);
+    return (
+      (value.protocol === "https:" || value.protocol === "http:") &&
+      value.username.length === 0 &&
+      value.password.length === 0 &&
+      value.search.length === 0 &&
+      value.hash.length === 0
+    );
+  } catch {
+    return false;
   }
 }
 

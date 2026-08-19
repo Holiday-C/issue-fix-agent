@@ -7,6 +7,7 @@ export type LiveM3Config = Readonly<{
   pricing: string;
   maxCostUsd: number;
   outputRoot: string;
+  baseURL?: string;
 }>;
 
 export class LiveM3ConfigurationError extends Error {
@@ -23,7 +24,14 @@ export function loadLiveM3Config(
   if (environment["ISSUE_FIX_LIVE_EVAL"] !== "1") {
     throw new LiveM3ConfigurationError("Set ISSUE_FIX_LIVE_EVAL=1 to authorize paid evaluation");
   }
-  required(environment, "ANTHROPIC_API_KEY");
+  const apiKey = environment["ANTHROPIC_API_KEY"]?.trim();
+  const authToken = environment["ANTHROPIC_AUTH_TOKEN"]?.trim();
+  if (
+    (apiKey === undefined || apiKey.length === 0) &&
+    (authToken === undefined || authToken.length === 0)
+  ) {
+    throw new LiveM3ConfigurationError("ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required");
+  }
   const model = required(environment, "ANTHROPIC_MODEL");
   if (model.length > 200 || model.includes("\0")) {
     throw new LiveM3ConfigurationError("ANTHROPIC_MODEL is invalid");
@@ -40,8 +48,33 @@ export function loadLiveM3Config(
     currentDirectory,
     environment["ISSUE_FIX_EVAL_OUTPUT_ROOT"]?.trim() || ".tmp",
   );
+  const baseURL = environment["ANTHROPIC_BASE_URL"]?.trim();
+  if (baseURL !== undefined && baseURL.length > 0 && !validBaseURL(baseURL)) {
+    throw new LiveM3ConfigurationError("ANTHROPIC_BASE_URL is invalid");
+  }
 
-  return Object.freeze({ model, pricing, maxCostUsd, outputRoot });
+  return Object.freeze({
+    model,
+    pricing,
+    maxCostUsd,
+    outputRoot,
+    ...(baseURL === undefined || baseURL.length === 0 ? {} : { baseURL }),
+  });
+}
+
+function validBaseURL(source: string): boolean {
+  try {
+    const value = new URL(source);
+    return (
+      (value.protocol === "https:" || value.protocol === "http:") &&
+      value.username.length === 0 &&
+      value.password.length === 0 &&
+      value.search.length === 0 &&
+      value.hash.length === 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 function required(environment: Readonly<Record<string, string | undefined>>, name: string): string {

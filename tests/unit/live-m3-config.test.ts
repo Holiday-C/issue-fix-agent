@@ -14,7 +14,26 @@ describe("loadLiveM3Config", () => {
         },
         "/workspace",
       ),
-    ).toThrow("ANTHROPIC_API_KEY is required");
+    ).toThrow("ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required");
+  });
+
+  it("supports an Anthropic-compatible base URL and auth token without retaining the token", () => {
+    const config = loadLiveM3Config(
+      {
+        ISSUE_FIX_LIVE_EVAL: "1",
+        ANTHROPIC_AUTH_TOKEN: "gateway-token",
+        ANTHROPIC_BASE_URL: "https://gateway.example/v1",
+        ANTHROPIC_MODEL: "qwen3.8-max-preview[1m]",
+        ANTHROPIC_PRICING: "1,2,3,4",
+      },
+      "/workspace",
+    );
+
+    expect(config).toMatchObject({
+      model: "qwen3.8-max-preview[1m]",
+      baseURL: "https://gateway.example/v1",
+    });
+    expect(JSON.stringify(config)).not.toContain("gateway-token");
   });
 
   it("returns bounded non-secret configuration", () => {

@@ -191,8 +191,49 @@ describe("runCli", () => {
     );
 
     expect(exit).toBe(3);
-    expect(output.stderr()).toContain("ANTHROPIC_API_KEY is required");
+    expect(output.stderr()).toContain("ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required");
     expect(output.stdout()).toBe("");
+  });
+
+  it("prefers gateway auth token and base URL over a stale API key", async () => {
+    const output = captureIo();
+    const capturedModels: AnthropicModelOptions[] = [];
+    const base = configuredDependencies("succeeded", capturedModels, false);
+    const dependencies: CliDependencies = {
+      ...base,
+      environment: {
+        ANTHROPIC_AUTH_TOKEN: "gateway-token",
+        ANTHROPIC_BASE_URL: "https://gateway.example/v1",
+        ANTHROPIC_API_KEY: "stale-api-key",
+      },
+    };
+
+    await runCli(
+      [
+        "run",
+        "--repo",
+        "/repository",
+        "--issue",
+        "/task.yaml",
+        "--model",
+        "qwen3.8-max-preview[1m]",
+        "--pricing",
+        "1,2,3,4",
+      ],
+      output.io,
+      dependencies,
+    );
+
+    expect(capturedModels).toEqual([
+      {
+        authToken: "gateway-token",
+        baseURL: "https://gateway.example/v1",
+        model: "qwen3.8-max-preview[1m]",
+        maxTokens: 8_192,
+        timeoutMilliseconds: 60_000,
+      },
+    ]);
+    expect(`${output.stdout()}${output.stderr()}`).not.toMatch(/gateway-token|stale-api-key/u);
   });
 });
 

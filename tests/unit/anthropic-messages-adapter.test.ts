@@ -215,6 +215,36 @@ describe("AnthropicMessagesAdapter", () => {
     });
     expect(client.requests).toEqual([]);
   });
+
+  it("accepts a custom base URL with bearer auth without adding credentials to requests", async () => {
+    const client = new RecordingClient(() => Promise.resolve(validResponse));
+    const adapter = new AnthropicMessagesAdapter(
+      {
+        authToken: "gateway-token",
+        baseURL: "https://gateway.example/v1",
+        model: "qwen3.8-max-preview[1m]",
+        maxTokens: 4_096,
+      },
+      client,
+    );
+
+    await adapter.complete(modelRequest);
+
+    const serialized = JSON.stringify(client.requests);
+    expect(serialized).not.toMatch(/gateway-token|gateway\.example/u);
+  });
+
+  it("rejects a base URL containing embedded credentials", () => {
+    expect(
+      () =>
+        new AnthropicMessagesAdapter({
+          authToken: "gateway-token",
+          baseURL: "https://user:password@gateway.example/v1",
+          model: "claude-test",
+          maxTokens: 4_096,
+        }),
+    ).toThrow(AnthropicModelError);
+  });
 });
 
 class RecordingClient implements AnthropicClientPort {

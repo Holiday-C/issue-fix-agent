@@ -176,6 +176,8 @@ the first usable local candidate repair.
 - [#30: configured run command](https://github.com/Holiday-C/issue-fix-agent/issues/30)
 - [#33: interactive repair wizard](https://github.com/Holiday-C/issue-fix-agent/issues/33)
 - [#35: manual real-model validation](https://github.com/Holiday-C/issue-fix-agent/issues/35)
+- [#44: Anthropic-compatible gateways](https://github.com/Holiday-C/issue-fix-agent/issues/44)
+- [#45: OpenAI-compatible gateway adapter](https://github.com/Holiday-C/issue-fix-agent/issues/45)
 
 - Anthropic adapter contained in `src/model/`;
 - repository instructions and task prompt assembly;
