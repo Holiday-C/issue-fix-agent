@@ -47,6 +47,8 @@ npm run dev -- run \
 
 运行过程只显示公开生命周期和工具进度；最终输出包含状态、产物目录、修改范围以及 Token/成本摘要。非交互终端必须使用配置化 `run` 入口。
 
+真实模型的三次固定 fixture 验收是显式付费操作，不会进入常规测试或 GitHub Actions。运行方法和审查清单见 [`docs/evaluation/m3-live.md`](./docs/evaluation/m3-live.md)。
+
 项目的工程约定在以下文档中：
 
 - [`AGENTS.md`](./AGENTS.md)：所有编码 Agent 必须遵守的仓库指令

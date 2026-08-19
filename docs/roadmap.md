@@ -160,7 +160,7 @@ a paid model call.
 
 ## M3 — Real Model MVP
 
-**Status:** Planned
+**Status:** In progress
 
 ### Goal
 
@@ -168,6 +168,14 @@ Run the deterministic repair harness with Anthropic Messages API and produce
 the first usable local candidate repair.
 
 ### Scope
+
+- [#31: Anthropic Messages adapter](https://github.com/Holiday-C/issue-fix-agent/issues/31)
+- [#34: elapsed, token, and cost budgets](https://github.com/Holiday-C/issue-fix-agent/issues/34)
+- [#36: bounded repair context](https://github.com/Holiday-C/issue-fix-agent/issues/36)
+- [#32: verified repair runner](https://github.com/Holiday-C/issue-fix-agent/issues/32)
+- [#30: configured run command](https://github.com/Holiday-C/issue-fix-agent/issues/30)
+- [#33: interactive repair wizard](https://github.com/Holiday-C/issue-fix-agent/issues/33)
+- [#35: manual real-model validation](https://github.com/Holiday-C/issue-fix-agent/issues/35)
 
 - Anthropic adapter contained in `src/model/`;
 - repository instructions and task prompt assembly;
