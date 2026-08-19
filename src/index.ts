@@ -6,9 +6,17 @@ export type {
   ModelPort,
   ModelRequest,
   ModelResponse,
+  ModelUsage,
   ToolDefinition,
   ToolUseBlock,
 } from "./model/types.js";
+export {
+  AnthropicMessagesAdapter,
+  AnthropicModelError,
+  type AnthropicClientPort,
+  type AnthropicModelErrorCode,
+  type AnthropicModelOptions,
+} from "./model/anthropic-messages-adapter.js";
 export { ToolRegistry } from "./tools/tool-registry.js";
 export type { ToolExecutor, ToolRegistryPort, ToolResult } from "./tools/types.js";
 export { NoopTraceSink, type TraceEvent, type TraceSink } from "./trace/types.js";

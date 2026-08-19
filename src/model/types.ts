@@ -36,14 +36,31 @@ export type ModelRequest = Readonly<{
   tools: readonly ToolDefinition[];
 }>;
 
-export type ModelStopReason = "end_turn" | "tool_use" | "max_tokens" | "unknown";
+export type ModelStopReason =
+  | "end_turn"
+  | "tool_use"
+  | "max_tokens"
+  | "stop_sequence"
+  | "pause_turn"
+  | "refusal"
+  | "context_window_exceeded"
+  | "unknown";
+
+export type ModelUsage = Readonly<{
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+}>;
 
 export type ModelResponse = Readonly<{
   message: ConversationMessage;
   stopReason: ModelStopReason;
   toolCalls: readonly ToolUseBlock[];
+  model: string;
+  usage: ModelUsage;
 }>;
 
 export interface ModelPort {
-  complete(request: ModelRequest): Promise<ModelResponse>;
+  complete(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse>;
 }

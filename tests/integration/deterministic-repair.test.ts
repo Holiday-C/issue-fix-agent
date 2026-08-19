@@ -269,6 +269,8 @@ function useTool(id: string, name: string, input: unknown): ModelResponse {
     message: Object.freeze({ role: "assistant", content: Object.freeze([call]) }),
     stopReason: "tool_use",
     toolCalls: Object.freeze([call]),
+    model: "scripted-model",
+    usage: emptyUsage,
   });
 }
 
@@ -280,6 +282,8 @@ function endTurn(text: string): ModelResponse {
     }),
     stopReason: "end_turn",
     toolCalls: Object.freeze([]),
+    model: "scripted-model",
+    usage: emptyUsage,
   });
 }
 
@@ -365,3 +369,10 @@ const greetingPatch = `diff --git a/src/greeting.js b/src/greeting.js
 +  return \`Hello, \${name}!\`;
  }
 `;
+
+const emptyUsage = Object.freeze({
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheCreationInputTokens: 0,
+  cacheReadInputTokens: 0,
+});
