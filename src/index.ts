@@ -16,6 +16,14 @@ export {
   type RepairContext,
   type RepairContextMetadata,
 } from "./cli/repair-context.js";
+export {
+  runRepair,
+  type RepairRunDependencies,
+  type RepairRunInput,
+  type RepairRunReason,
+  type RepairRunResult,
+  type RepairRunStatus,
+} from "./cli/run-repair.js";
 export type {
   ConversationMessage,
   ModelPort,
