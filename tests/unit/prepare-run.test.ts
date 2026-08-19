@@ -6,8 +6,12 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runCli, type CliIo } from "../../src/cli/cli.js";
+import { runCli, type CliDependencies, type CliIo } from "../../src/cli/cli.js";
 import { prepareRun } from "../../src/cli/prepare-run.js";
+import type { RepairRunResult, RepairRunStatus } from "../../src/cli/run-repair.js";
+import type { AnthropicModelOptions } from "../../src/model/anthropic-messages-adapter.js";
+import type { ModelPort } from "../../src/model/types.js";
+import type { TaskContract } from "../../src/task/task-contract.js";
 import { TaskContractError } from "../../src/task/task-contract.js";
 import { createIsolatedWorktree } from "../../src/workspace/git-worktree.js";
 
@@ -124,6 +128,72 @@ describe("runCli", () => {
     await expect(runCli(["prepare"], output.io)).resolves.toBe(2);
     expect(output.stderr()).toContain("requires --repo and --issue");
   });
+
+  it.each([
+    ["succeeded", 0],
+    ["failed", 1],
+    ["blocked", 3],
+    ["cancelled", 130],
+  ] as const)("maps configured run status %s to exit code %s", async (status, expectedExit) => {
+    const output = captureIo();
+    const capturedModels: AnthropicModelOptions[] = [];
+    const dependencies = configuredDependencies(status, capturedModels);
+
+    const exit = await runCli(
+      [
+        "run",
+        "--repo",
+        "/repository",
+        "--issue",
+        "/task.yaml",
+        "--model",
+        "claude-test",
+        "--pricing",
+        "1,2,3,4",
+      ],
+      output.io,
+      dependencies,
+    );
+
+    expect(exit).toBe(expectedExit);
+    expect(parseJsonObject(output.stdout())).toMatchObject({
+      status,
+      artifactDirectory: "/repository/.issue-fix/runs/test-run",
+      usage: { estimatedCostUsd: 0.001 },
+    });
+    expect(output.stderr()).toContain("progress: iteration 1");
+    expect(output.stderr()).toContain("progress: tool ?[31munsafe completed");
+    expect(output.stderr()).not.toContain("\u001b");
+    expect(capturedModels).toMatchObject([
+      { apiKey: "test-api-key", model: "claude-test", maxTokens: 8_192 },
+    ]);
+    expect(`${output.stdout()}${output.stderr()}`).not.toContain("test-api-key");
+  });
+
+  it("fails closed before model construction when the API key is absent", async () => {
+    const output = captureIo();
+    const dependencies = configuredDependencies("succeeded", [], false);
+
+    const exit = await runCli(
+      [
+        "run",
+        "--repo",
+        "/repository",
+        "--issue",
+        "/task.yaml",
+        "--model",
+        "claude-test",
+        "--pricing",
+        "1,2,3,4",
+      ],
+      output.io,
+      dependencies,
+    );
+
+    expect(exit).toBe(3);
+    expect(output.stderr()).toContain("ANTHROPIC_API_KEY is required");
+    expect(output.stdout()).toBe("");
+  });
 });
 
 async function createRepository(): Promise<string> {
@@ -207,3 +277,78 @@ function parseJsonObject(source: string): Readonly<Record<string, unknown>> {
   }
   return value as Readonly<Record<string, unknown>>;
 }
+
+function configuredDependencies(
+  status: RepairRunStatus,
+  capturedModels: AnthropicModelOptions[],
+  withApiKey = true,
+): CliDependencies {
+  const environment: Record<string, string | undefined> = withApiKey
+    ? { ANTHROPIC_API_KEY: "test-api-key" }
+    : {};
+  return {
+    prepare: prepareRun,
+    loadTask: () => Promise.resolve({ taskPath: "/task.yaml", task: configuredTask }),
+    run: (input) => {
+      input.onProgress?.({ type: "iteration_started", iteration: 1 });
+      input.onProgress?.({
+        type: "tool_completed",
+        iteration: 1,
+        metadata: { tool: "\u001b[31munsafe", isError: false },
+      });
+      return Promise.resolve(configuredResult(status));
+    },
+    createModel: (options) => {
+      capturedModels.push(options);
+      return unusedModel;
+    },
+    environment,
+  };
+}
+
+function configuredResult(status: RepairRunStatus): RepairRunResult {
+  const reason =
+    status === "succeeded"
+      ? "verified"
+      : status === "blocked"
+        ? "sandbox_unavailable"
+        : status === "cancelled"
+          ? "cancelled"
+          : "runtime_failed";
+  return Object.freeze({
+    status,
+    reason,
+    runId: "test-run",
+    artifactDirectory: "/repository/.issue-fix/runs/test-run",
+    agent: null,
+    verification: null,
+    usage: Object.freeze({
+      iterations: 1,
+      elapsedMilliseconds: 10,
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+      totalInputTokens: 100,
+      estimatedCostUsd: 0.001,
+      models: Object.freeze(["claude-test"]),
+    }),
+    changedFiles: 1,
+    scopeCompliant: status === "succeeded",
+  });
+}
+
+const configuredTask: TaskContract = Object.freeze({
+  title: "Configured run",
+  description: "Run through the CLI.",
+  acceptanceCriteria: Object.freeze(["Run completes"]),
+  allowedPaths: Object.freeze(["src/**"]),
+  verification: Object.freeze([
+    Object.freeze({ executable: "node", args: Object.freeze(["--test"]) }),
+  ]),
+  limits: Object.freeze({ maxIterations: 2, maxChangedFiles: 2, timeoutMinutes: 1 }),
+});
+
+const unusedModel: ModelPort = Object.freeze({
+  complete: () => Promise.reject(new Error("CLI test model must not run")),
+});

@@ -54,7 +54,7 @@ export async function prepareRun(
   input: PrepareRunInput,
   dependencies: PrepareRunDependencies = defaultDependencies,
 ): Promise<PreparedRun> {
-  const { taskPath, task } = await loadTask(input.taskPath);
+  const { taskPath, task } = await loadTaskFile(input.taskPath);
   const worktreeOptions: CreateIsolatedWorktreeOptions =
     input.temporaryDirectory === undefined ? {} : { temporaryDirectory: input.temporaryDirectory };
   const worktree = await dependencies.createWorktree(input.repositoryPath, worktreeOptions);
@@ -79,7 +79,7 @@ export async function prepareRun(
   }
 }
 
-async function loadTask(
+export async function loadTaskFile(
   requestedPath: string,
 ): Promise<Readonly<{ taskPath: string; task: TaskContract }>> {
   if (

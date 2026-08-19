@@ -21,6 +21,7 @@ import { createRepositoryMutationTools } from "../tools/repository-mutation.js";
 import { ToolRegistry } from "../tools/tool-registry.js";
 import type { ToolResult } from "../tools/types.js";
 import { createRunArtifacts, type RunArtifacts } from "../trace/run-artifacts.js";
+import type { TraceEvent } from "../trace/types.js";
 import { runVerification, type VerificationReport } from "../verification/verification-runner.js";
 import { WorkspaceError, type WorkspaceErrorCode } from "../workspace/git-worktree.js";
 import { loadRepositoryInstructions } from "../workspace/repository-instructions.js";
@@ -60,6 +61,7 @@ export type RepairRunInput = Readonly<{
   runId?: string;
   temporaryDirectory?: string;
   signal?: AbortSignal;
+  onProgress?: (event: TraceEvent) => void;
 }>;
 
 export type RepairRunResult = Readonly<{
@@ -91,7 +93,10 @@ export async function runRepair(
 
   let artifacts: RunArtifacts;
   try {
-    const options = input.runId === undefined ? {} : { runId: input.runId };
+    const options = {
+      ...(input.runId === undefined ? {} : { runId: input.runId }),
+      ...(input.onProgress === undefined ? {} : { onEvent: input.onProgress }),
+    };
     artifacts = await createRunArtifacts(prepared.repositoryRoot, options);
     await artifacts.writeTask(prepared.task);
   } catch {

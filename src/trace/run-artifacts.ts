@@ -23,6 +23,7 @@ const SENSITIVE_KEY_PATTERN =
 export type RunArtifactOptions = Readonly<{
   runId?: string;
   secretPatterns?: readonly string[];
+  onEvent?: (event: TraceEvent) => void;
 }>;
 
 export class RunArtifactError extends Error {
@@ -46,11 +47,16 @@ export class RunArtifacts {
   public readonly trace: TraceSink;
   readonly #redactor: Redactor;
 
-  public constructor(runId: string, runDirectory: string, redactor: Redactor) {
+  public constructor(
+    runId: string,
+    runDirectory: string,
+    redactor: Redactor,
+    onEvent?: (event: TraceEvent) => void,
+  ) {
     this.runId = runId;
     this.runDirectory = runDirectory;
     this.#redactor = redactor;
-    this.trace = new JsonlTraceSink(join(runDirectory, "trace.jsonl"), redactor);
+    this.trace = new JsonlTraceSink(join(runDirectory, "trace.jsonl"), redactor, onEvent);
     Object.freeze(this);
   }
 
@@ -136,19 +142,26 @@ export async function createRunArtifacts(
     });
   }
 
-  return new RunArtifacts(runId, canonicalRunDirectory, new Redactor(options.secretPatterns ?? []));
+  return new RunArtifacts(
+    runId,
+    canonicalRunDirectory,
+    new Redactor(options.secretPatterns ?? []),
+    options.onEvent,
+  );
 }
 
 class JsonlTraceSink implements TraceSink {
   readonly #path: string;
   readonly #redactor: Redactor;
+  readonly #onEvent: ((event: TraceEvent) => void) | undefined;
   #bytesWritten = 0;
   #truncated = false;
   #queue: Promise<void> = Promise.resolve();
 
-  public constructor(path: string, redactor: Redactor) {
+  public constructor(path: string, redactor: Redactor, onEvent?: (event: TraceEvent) => void) {
     this.#path = path;
     this.#redactor = redactor;
+    this.#onEvent = onEvent;
   }
 
   public record(event: TraceEvent): Promise<void> {
@@ -179,11 +192,13 @@ class JsonlTraceSink implements TraceSink {
       await this.#write(marker);
       this.#bytesWritten += Buffer.byteLength(marker, "utf8");
       this.#truncated = true;
+      this.#notify(event);
       return;
     }
 
     await this.#write(line);
     this.#bytesWritten += Buffer.byteLength(line, "utf8");
+    this.#notify(event);
   }
 
   async #write(line: string): Promise<void> {
@@ -193,6 +208,14 @@ class JsonlTraceSink implements TraceSink {
       throw new RunArtifactError("artifact_write_failed", "Trace event cannot be written", {
         cause: error,
       });
+    }
+  }
+
+  #notify(event: TraceEvent): void {
+    try {
+      this.#onEvent?.(event);
+    } catch {
+      // Progress rendering is observational and cannot change run behavior.
     }
   }
 }
