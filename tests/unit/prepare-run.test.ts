@@ -11,6 +11,7 @@ import { prepareRun } from "../../src/cli/prepare-run.js";
 import type { RepairRunResult, RepairRunStatus } from "../../src/cli/run-repair.js";
 import type { AnthropicModelOptions } from "../../src/model/anthropic-messages-adapter.js";
 import type { ModelPort } from "../../src/model/types.js";
+import type { OpenAIChatOptions } from "../../src/model/openai-chat-adapter.js";
 import type { TaskContract } from "../../src/task/task-contract.js";
 import { TaskContractError } from "../../src/task/task-contract.js";
 import { createIsolatedWorktree } from "../../src/workspace/git-worktree.js";
@@ -236,6 +237,53 @@ describe("runCli", () => {
       },
     ]);
     expect(`${output.stdout()}${output.stderr()}`).not.toMatch(/gateway-token|stale-api-key/u);
+  });
+
+  it("selects the OpenAI-compatible adapter only through explicit protocol configuration", async () => {
+    const output = captureIo();
+    const capturedOpenAI: OpenAIChatOptions[] = [];
+    const dependencies: CliDependencies = {
+      ...configuredDependencies("succeeded", [], false),
+      createOpenAIModel: (options) => {
+        capturedOpenAI.push(options);
+        return unusedModel;
+      },
+      environment: {
+        ISSUE_FIX_MODEL_PROTOCOL: "openai",
+        OPENAI_BASE_URL: "https://api.deepseek.com",
+        OPENAI_AUTH_TOKEN: "openai-token",
+        OPENAI_THINKING: "disabled",
+      },
+    };
+
+    const exit = await runCli(
+      [
+        "run",
+        "--repo",
+        "/repository",
+        "--issue",
+        "/task.yaml",
+        "--model",
+        "deepseek-v4-flash[1m]",
+        "--pricing",
+        "1,2,3,4",
+      ],
+      output.io,
+      dependencies,
+    );
+
+    expect(exit).toBe(0);
+    expect(capturedOpenAI).toEqual([
+      {
+        baseURL: "https://api.deepseek.com",
+        authToken: "openai-token",
+        model: "deepseek-v4-flash[1m]",
+        maxTokens: 8_192,
+        timeoutMilliseconds: 60_000,
+        thinkingMode: "disabled",
+      },
+    ]);
+    expect(`${output.stdout()}${output.stderr()}`).not.toContain("openai-token");
   });
 });
 

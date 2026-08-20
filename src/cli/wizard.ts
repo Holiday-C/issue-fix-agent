@@ -99,7 +99,7 @@ export async function collectWizardPlan(
     "run limits",
   );
   const model = required(
-    await questionWithDefault(prompt, "Anthropic model ID", defaults.model ?? ""),
+    await questionWithDefault(prompt, "Provider model ID", defaults.model ?? ""),
     "model ID",
   );
   if (model.length > 200 || model.includes("\0")) {

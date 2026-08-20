@@ -43,6 +43,20 @@ npm run dev
 
 不要同时依赖两种凭据；如果环境中两者都存在，显式的 `ANTHROPIC_AUTH_TOKEN` 优先。思考模式默认关闭，只能通过 `ANTHROPIC_THINKING=enabled` 显式开启；隐藏推理只在 adapter 内存中做不透明回放，不会进入日志或产物。自定义地址必须实现 Anthropic `/v1/messages` 协议。OpenAI 兼容协议由独立 adapter 提供，不会根据 URL 自动猜测。
 
+同一网关也可以显式切换到 OpenAI Chat Completions 协议：
+
+```bash
+export ISSUE_FIX_MODEL_PROTOCOL='openai'
+export OPENAI_BASE_URL='https://your-gateway.example/v1'
+export OPENAI_AUTH_TOKEN='your-token'
+export OPENAI_MODEL='your-model-id'
+export OPENAI_PRICING='input,output,cache-write,cache-read'
+export OPENAI_THINKING='disabled'
+npm run dev
+```
+
+OpenAI adapter 会请求 `<OPENAI_BASE_URL>/chat/completions`。协议必须显式选择，不会根据 URL 自动判断。
+
 可以通过 `ANTHROPIC_MODEL` 和 `ANTHROPIC_PRICING` 为向导提供模型与价格默认值。价格顺序是每百万 Token 的 input、output、cache-write、cache-read 美元单价。
 
 高级配置入口适合自动化和复现。模型 ID 与价格必须显式提供，避免内置价格随供应商变化而失真：

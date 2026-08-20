@@ -1,10 +1,8 @@
 import type { AgentOutcome } from "../agent/types.js";
 import type { BudgetPort, ResourceUsageSummary } from "../agent/budget.js";
 import { runAgentLoop } from "../agent/agent-loop.js";
-import {
-  AnthropicModelError,
-  type AnthropicModelErrorCode,
-} from "../model/anthropic-messages-adapter.js";
+import type { AnthropicModelErrorCode } from "../model/anthropic-messages-adapter.js";
+import { ModelAdapterError } from "../model/model-error.js";
 import type { ModelPort } from "../model/types.js";
 import { CommandPolicy } from "../permissions/command-policy.js";
 import { PathPolicyConfigurationError } from "../permissions/path-policy.js";
@@ -377,7 +375,7 @@ function finalOutcome(
 function modelFailure(
   error: unknown,
 ): Readonly<{ status: RepairRunStatus; reason: RepairRunReason }> {
-  if (error instanceof AnthropicModelError) {
+  if (error instanceof ModelAdapterError) {
     if (error.code === "cancelled")
       return Object.freeze({ status: "cancelled", reason: error.code });
     if (error.code === "authentication_failed" || error.code === "rate_limited") {

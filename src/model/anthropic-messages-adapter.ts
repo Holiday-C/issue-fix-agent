@@ -17,6 +17,7 @@ import type {
   ToolDefinition,
   ToolUseBlock,
 } from "./types.js";
+import { ModelAdapterError, type ModelAdapterErrorCode } from "./model-error.js";
 
 const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const MAX_TEXT_BYTES = 1024 * 1024;
@@ -75,23 +76,12 @@ export interface AnthropicClientPort {
   createMessage(request: unknown, signal: AbortSignal): Promise<unknown>;
 }
 
-export type AnthropicModelErrorCode =
-  | "invalid_configuration"
-  | "invalid_request"
-  | "invalid_response"
-  | "authentication_failed"
-  | "rate_limited"
-  | "timed_out"
-  | "cancelled"
-  | "provider_failed";
+export type AnthropicModelErrorCode = ModelAdapterErrorCode;
 
-export class AnthropicModelError extends Error {
-  public readonly code: AnthropicModelErrorCode;
-
+export class AnthropicModelError extends ModelAdapterError {
   public constructor(code: AnthropicModelErrorCode, message: string) {
-    super(message);
+    super(code, message);
     this.name = "AnthropicModelError";
-    this.code = code;
   }
 }
 

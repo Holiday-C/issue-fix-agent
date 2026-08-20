@@ -40,6 +40,12 @@ export {
   type AnthropicModelErrorCode,
   type AnthropicModelOptions,
 } from "./model/anthropic-messages-adapter.js";
+export { ModelAdapterError, type ModelAdapterErrorCode } from "./model/model-error.js";
+export {
+  OpenAICompatibleAdapter,
+  type OpenAIChatClientPort,
+  type OpenAIChatOptions,
+} from "./model/openai-chat-adapter.js";
 export { ToolRegistry } from "./tools/tool-registry.js";
 export type { ToolExecutor, ToolRegistryPort, ToolResult } from "./tools/types.js";
 export { NoopTraceSink, type TraceEvent, type TraceSink } from "./trace/types.js";
