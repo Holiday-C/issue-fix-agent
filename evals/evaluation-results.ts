@@ -265,13 +265,8 @@ export function classifyEvaluationFailure(
 }
 
 export function aggregateEvaluationResults(source: unknown): EvaluationSummary {
-  const parsed = resultListSchema.parse(source).map(freezeResult);
-  const taskIds = parsed
-    .map((result) => result.taskId)
-    .sort((left, right) => left.localeCompare(right));
-  if (new Set(taskIds).size !== taskIds.length) {
-    throw new TypeError("Evaluation result task IDs must be unique");
-  }
+  const parsed = validateEvaluationResults(source);
+  const taskIds = parsed.map((result) => result.taskId);
 
   const failures = emptyFailureCounts();
   let acceptedTasks = 0;
@@ -327,6 +322,18 @@ export function aggregateEvaluationResults(source: unknown): EvaluationSummary {
     taskIds: Object.freeze(taskIds),
     failures: Object.freeze(failures),
   });
+}
+
+export function validateEvaluationResults(source: unknown): readonly EvaluationResult[] {
+  const parsed = resultListSchema
+    .parse(source)
+    .map(freezeResult)
+    .sort((left, right) => left.taskId.localeCompare(right.taskId));
+  const taskIds = parsed.map((result) => result.taskId);
+  if (new Set(taskIds).size !== taskIds.length) {
+    throw new TypeError("Evaluation result task IDs must be unique");
+  }
+  return Object.freeze(parsed);
 }
 
 function failureEvidence(run: RepairRunResult): readonly string[] {
