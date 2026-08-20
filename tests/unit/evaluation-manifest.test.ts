@@ -55,8 +55,15 @@ describe("loadEvaluationManifest", () => {
   it("loads the repository manifest", async () => {
     const manifest = await loadEvaluationManifest(join(process.cwd(), "evals", "manifest.yaml"));
 
-    expect(manifest.tasks.map((task) => task.id)).toEqual(["greeting-typo"]);
+    expect(manifest.tasks.map((task) => task.id)).toEqual([
+      "greeting-typo",
+      "slugify-whitespace",
+      "page-offset-regression",
+      "cli-documentation",
+      "unavailable-verification",
+    ]);
     expect(manifest.tasks[0]?.contract.title).toBe("Fix the greeting typo");
+    expect(manifest.tasks.at(-1)?.contract.verification).toHaveLength(2);
   });
 
   it("rejects duplicate task IDs", async () => {

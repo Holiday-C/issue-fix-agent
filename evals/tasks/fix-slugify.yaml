@@ -1,0 +1,15 @@
+title: Normalize generated slugs
+description: Make slugify lowercase its input and collapse any whitespace run to one hyphen.
+acceptance_criteria:
+  - Surrounding whitespace is removed
+  - Output is lowercase
+  - Consecutive whitespace becomes one hyphen
+allowed_paths:
+  - src/slug.js
+verification:
+  - executable: node
+    args: [--test, test/slug.test.js]
+limits:
+  max_iterations: 8
+  max_changed_files: 1
+  timeout_minutes: 1

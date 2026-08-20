@@ -1,0 +1,14 @@
+title: Prevent negative page offsets
+description: Clamp zero and negative page numbers to the first page without changing positive-page behavior.
+acceptance_criteria:
+  - Zero and negative page numbers return offset zero
+  - Existing offsets for positive pages are unchanged
+allowed_paths:
+  - src/page-offset.js
+verification:
+  - executable: node
+    args: [--test, test/page-offset.test.js]
+limits:
+  max_iterations: 8
+  max_changed_files: 1
+  timeout_minutes: 1

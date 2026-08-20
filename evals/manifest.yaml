@@ -5,3 +5,23 @@ tasks:
     task: tasks/fix-greeting.yaml
     expected_changed_paths:
       - src/greeting.js
+  - id: slugify-whitespace
+    fixture: fixtures/slugify
+    task: tasks/fix-slugify.yaml
+    expected_changed_paths:
+      - src/slug.js
+  - id: page-offset-regression
+    fixture: fixtures/page-offset
+    task: tasks/fix-page-offset.yaml
+    expected_changed_paths:
+      - src/page-offset.js
+  - id: cli-documentation
+    fixture: fixtures/cli-docs
+    task: tasks/update-cli-docs.yaml
+    expected_changed_paths:
+      - README.md
+  - id: unavailable-verification
+    fixture: fixtures/unavailable-check
+    task: tasks/fix-unavailable-check.yaml
+    expected_changed_paths:
+      - src/status.js

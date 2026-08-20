@@ -17,5 +17,6 @@ missing files, wrong file types, and symbolic links escaping `evals/` are
 rejected. Every expected changed path must also match the task contract's
 `allowed_paths` policy. Task order is preserved so reports remain stable.
 
-The manifest is intentionally limited to 20 entries and 256 KiB. M4 will grow
-the checked-in list from the existing greeting task to ten deterministic tasks.
+The manifest is intentionally limited to 20 entries and 256 KiB. M4 fixes the
+checked-in suite at ten deterministic tasks; fixture purpose and expected
+outcomes are documented in [`fixtures.md`](./fixtures.md).
