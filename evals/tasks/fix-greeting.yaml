@@ -8,6 +8,6 @@ verification:
   - executable: node
     args: [--test, test/greeting.test.js]
 limits:
-  max_iterations: 8
+  max_iterations: 12
   max_changed_files: 1
   timeout_minutes: 1

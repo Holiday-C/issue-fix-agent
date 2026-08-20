@@ -144,7 +144,7 @@ export async function runRepair(
       }
 
       if (agent !== null) {
-        if (agent.status === "completed") {
+        if (agent.status === "completed" || agent.status === "blocked") {
           verification = await runVerification(
             {
               task: prepared.task,
