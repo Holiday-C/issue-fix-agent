@@ -47,7 +47,7 @@ export function createRepositoryMutationTools(pathPolicy: PathPolicy): readonly 
   return Object.freeze([
     createExecutor(
       "apply_patch",
-      "Apply a bounded text-only unified patch to authorized worktree paths.",
+      "Apply a bounded text-only Git unified diff to authorized worktree paths. Start with diff --git, include --- a/path and +++ b/path headers plus an @@ hunk; wrappers such as *** Begin Patch are invalid.",
       applyPatchInput,
       (input) => applyPatch(pathPolicy, input),
     ),

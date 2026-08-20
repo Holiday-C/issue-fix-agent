@@ -22,6 +22,15 @@ afterEach(async () => {
 });
 
 describe("repository mutation tools", () => {
+  it("describes the exact patch format exposed to models", async () => {
+    const { tools } = await createTools();
+    const applyPatch = tools.find((tool) => tool.definition.name === "apply_patch");
+
+    expect(applyPatch?.definition.description).toContain("diff --git");
+    expect(applyPatch?.definition.description).toContain("--- a/path");
+    expect(applyPatch?.definition.description).toContain("*** Begin Patch are invalid");
+  });
+
   it("applies an authorized text patch and returns its bounded diff", async () => {
     const { root, tools } = await createTools();
     const patch = modificationPatch("export const value = 1;", "export const value = 2;");
