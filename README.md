@@ -75,6 +75,10 @@ npm run dev -- run \
 
 真实模型的三次固定 fixture 验收是显式付费操作，不会进入常规测试或 GitHub Actions。运行方法和审查清单见 [`docs/evaluation/m3-live.md`](./docs/evaluation/m3-live.md)。
 
+M4 的十任务 baseline 同样只允许手动付费运行，并使用独立授权开关和
+suite 总成本上限。配置与退出标准见
+[`docs/evaluation/m4-live.md`](./docs/evaluation/m4-live.md)。
+
 项目的工程约定在以下文档中：
 
 - [`AGENTS.md`](./AGENTS.md)：所有编码 Agent 必须遵守的仓库指令

@@ -69,6 +69,8 @@ describe("loadEvaluationManifest", () => {
     ]);
     expect(manifest.tasks[0]?.contract.title).toBe("Fix the greeting typo");
     expect(manifest.tasks[4]?.contract.verification).toHaveLength(2);
+    expect(manifest.tasks[4]?.expectedFailureChecks).toEqual([1]);
+    expect(manifest.tasks.at(-1)?.expectedFailureChecks).toEqual([0]);
     const largeCatalog = manifest.tasks.find((task) => task.id === "large-catalog-label");
     expect(
       (await stat(join(largeCatalog?.fixturePath ?? "", "src", "catalog.js"))).size,
@@ -142,6 +144,22 @@ describe("loadEvaluationManifest", () => {
 
     expect(error.code).toBe("invalid_reference");
     expect(error.issues[0]?.path.join(".")).toBe("tasks.0.expected_changed_paths");
+  });
+
+  it("rejects invalid expected failure check indices", async () => {
+    const setup = await createEvaluation();
+    await writeFile(
+      setup.manifestPath,
+      manifestSource().replace(
+        "expected_changed_paths: [src/greeting.js]",
+        "expected_changed_paths: [src/greeting.js]\n    expected_failure_checks: [1]",
+      ),
+    );
+
+    const error = await captureManifestError(setup.manifestPath);
+
+    expect(error.code).toBe("invalid_reference");
+    expect(error.issues[0]?.path.join(".")).toBe("tasks.0.expected_failure_checks");
   });
 });
 
