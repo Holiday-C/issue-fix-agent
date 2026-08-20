@@ -14,7 +14,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
+    files: ["src/**/*.ts", "tests/**/*.ts", "evals/**/*.ts", "vitest.config.ts"],
     extends: [eslint.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parserOptions: {

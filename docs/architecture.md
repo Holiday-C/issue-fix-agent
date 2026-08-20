@@ -93,6 +93,13 @@ If an event cannot be persisted, the Agent returns a failed outcome with `trace_
 
 Parses arguments, loads configuration, assembles provider-neutral repair context, and owns the application runner that composes preparation, tools, model execution, verification, artifacts, and cleanup. It constructs concrete adapters, handles signals, and maps outcomes to exit codes. It is the only composition root. Repository-provided text remains user-level context and never becomes host authority.
 
+### `evals/`
+
+Owns deterministic fixtures, task contracts, the versioned evaluation manifest,
+and evaluation-only reporting tools. It may consume public runtime contracts,
+but production modules never depend on evaluation code. Manifest references are
+validated and resolved beneath the evaluation root before any fixture is used.
+
 ## Dependency Rules
 
 Allowed dependency direction:
