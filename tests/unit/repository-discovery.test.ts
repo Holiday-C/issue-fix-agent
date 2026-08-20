@@ -86,6 +86,36 @@ describe("repository discovery tools", () => {
     expect(second.value).toMatchObject({ content: "xture\n", truncated: false, nextOffset: null });
   });
 
+  it("requires continuation reads for files larger than the read ceiling", async () => {
+    const root = await createFixture();
+    await writeFile(join(root, "src/large.txt"), "x".repeat(20 * 1024), "utf8");
+    const policy = await PathPolicy.create(root, ["src/**"]);
+    const tools = createRepositoryDiscoveryTools(policy);
+
+    const first = await execute(tools, "read_file", {
+      path: "src/large.txt",
+      maxBytes: 16 * 1024,
+    });
+    const second = await execute(tools, "read_file", {
+      path: "src/large.txt",
+      offset: first.value["nextOffset"],
+      maxBytes: 16 * 1024,
+    });
+
+    expect(first.value).toMatchObject({
+      bytesRead: 16 * 1024,
+      totalBytes: 20 * 1024,
+      truncated: true,
+      nextOffset: 16 * 1024,
+    });
+    expect(second.value).toMatchObject({
+      bytesRead: 4 * 1024,
+      totalBytes: 20 * 1024,
+      truncated: false,
+      nextOffset: null,
+    });
+  });
+
   it("ends byte segments on UTF-8 character boundaries", async () => {
     const root = await createFixture();
     await writeFile(join(root, "src/unicode.txt"), "éé\n", "utf8");

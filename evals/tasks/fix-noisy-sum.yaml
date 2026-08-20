@@ -1,0 +1,14 @@
+title: Correct the sum helper
+description: The sum helper subtracts its operands. Correct the implementation without changing the noisy verification command.
+acceptance_criteria:
+  - sum(2, 3) returns 5
+  - Verification output remains safely bounded
+allowed_paths:
+  - src/sum.js
+verification:
+  - executable: node
+    args: [test/noisy-check.js]
+limits:
+  max_iterations: 8
+  max_changed_files: 1
+  timeout_minutes: 1

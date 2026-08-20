@@ -56,29 +56,47 @@ describe("createCommandTool", () => {
     expect(result.isError).toBe(true);
     expect(process.invocations).toEqual([]);
   });
+
+  it("reports truncation without exposing command output", async () => {
+    const { tool } = await setup({
+      outcome: "completed",
+      exitCode: 0,
+      durationMilliseconds: 4,
+      stdout: "x".repeat(32 * 1024),
+      stderr: "",
+      stdoutTruncated: true,
+      stderrTruncated: false,
+      sandboxViolation: false,
+    });
+
+    const result = await tool.execute({
+      executable: "node",
+      args: ["check.mjs"],
+      cwd: ".",
+    });
+
+    expect(parseJsonObject(result.content)).toMatchObject({
+      stdout: { bytes: 32 * 1024, truncated: true },
+    });
+    expect(result.content).not.toContain("xxx");
+    expect(Buffer.byteLength(result.content, "utf8")).toBeLessThan(1_000);
+  });
 });
 
 class RecordingProcess implements ProcessPort {
   public readonly invocations: ProcessInvocation[] = [];
 
+  public constructor(private readonly result: ProcessResult = successfulProcessResult) {}
+
   public async run(invocation: ProcessInvocation): Promise<ProcessResult> {
     this.invocations.push(invocation);
-    return Promise.resolve({
-      outcome: "completed",
-      exitCode: 0,
-      durationMilliseconds: 4,
-      stdout: "private output",
-      stderr: "",
-      stdoutTruncated: false,
-      stderrTruncated: false,
-      sandboxViolation: false,
-    });
+    return Promise.resolve(this.result);
   }
 
   public async close(): Promise<void> {}
 }
 
-async function setup(): Promise<
+async function setup(result: ProcessResult = successfulProcessResult): Promise<
   Readonly<{
     tool: ReturnType<typeof createCommandTool>;
     process: RecordingProcess;
@@ -90,9 +108,20 @@ async function setup(): Promise<
   const commandPolicy = new CommandPolicy(pathPolicy, [
     { executable: "node", args: ["check.mjs"] },
   ]);
-  const process = new RecordingProcess();
+  const process = new RecordingProcess(result);
   return Object.freeze({ tool: createCommandTool(commandPolicy, process), process });
 }
+
+const successfulProcessResult: ProcessResult = Object.freeze({
+  outcome: "completed",
+  exitCode: 0,
+  durationMilliseconds: 4,
+  stdout: "private output",
+  stderr: "",
+  stdoutTruncated: false,
+  stderrTruncated: false,
+  sandboxViolation: false,
+});
 
 function parseJsonObject(source: string): Readonly<Record<string, unknown>> {
   const value: unknown = JSON.parse(source);

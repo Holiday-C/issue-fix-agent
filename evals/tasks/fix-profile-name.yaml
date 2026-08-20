@@ -1,0 +1,15 @@
+title: Correct the profile display name
+description: Correct the first and last name source records so the existing display helper returns the canonical name.
+acceptance_criteria:
+  - The displayed name is Ada Lovelace
+  - Both source records use their canonical capitalization
+allowed_paths:
+  - src/first-name.js
+  - src/last-name.js
+verification:
+  - executable: node
+    args: [--test, test/profile.test.js]
+limits:
+  max_iterations: 8
+  max_changed_files: 2
+  timeout_minutes: 1
