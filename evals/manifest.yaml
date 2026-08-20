@@ -25,3 +25,29 @@ tasks:
     task: tasks/fix-unavailable-check.yaml
     expected_changed_paths:
       - src/status.js
+  - id: profile-name-multi-file
+    fixture: fixtures/profile-name
+    task: tasks/fix-profile-name.yaml
+    expected_changed_paths:
+      - src/first-name.js
+      - src/last-name.js
+  - id: large-catalog-label
+    fixture: fixtures/large-catalog
+    task: tasks/fix-large-catalog.yaml
+    expected_changed_paths:
+      - src/catalog.js
+  - id: noisy-command-output
+    fixture: fixtures/noisy-sum
+    task: tasks/fix-noisy-sum.yaml
+    expected_changed_paths:
+      - src/sum.js
+  - id: denied-scope-conflict
+    fixture: fixtures/scope-conflict
+    task: tasks/blocked-scope-conflict.yaml
+    expected_changed_paths:
+      - src/runtime.js
+  - id: blocked-ambiguous-requirement
+    fixture: fixtures/ambiguous-separator
+    task: tasks/blocked-ambiguous-separator.yaml
+    expected_changed_paths:
+      - src/format.js

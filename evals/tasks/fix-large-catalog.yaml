@@ -1,0 +1,14 @@
+title: Correct the omega catalog label
+description: The large catalog misspells the label for code omega as Oemga. Correct only that entry and preserve all other lookup behavior.
+acceptance_criteria:
+  - labelFor("omega") returns Omega
+  - Existing catalog entries and missing-code behavior are unchanged
+allowed_paths:
+  - src/catalog.js
+verification:
+  - executable: node
+    args: [--test, test/catalog.test.js]
+limits:
+  max_iterations: 8
+  max_changed_files: 1
+  timeout_minutes: 1

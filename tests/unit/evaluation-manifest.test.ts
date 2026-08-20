@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -61,9 +61,18 @@ describe("loadEvaluationManifest", () => {
       "page-offset-regression",
       "cli-documentation",
       "unavailable-verification",
+      "profile-name-multi-file",
+      "large-catalog-label",
+      "noisy-command-output",
+      "denied-scope-conflict",
+      "blocked-ambiguous-requirement",
     ]);
     expect(manifest.tasks[0]?.contract.title).toBe("Fix the greeting typo");
-    expect(manifest.tasks.at(-1)?.contract.verification).toHaveLength(2);
+    expect(manifest.tasks[4]?.contract.verification).toHaveLength(2);
+    const largeCatalog = manifest.tasks.find((task) => task.id === "large-catalog-label");
+    expect(
+      (await stat(join(largeCatalog?.fixturePath ?? "", "src", "catalog.js"))).size,
+    ).toBeGreaterThan(16 * 1024);
   });
 
   it("rejects duplicate task IDs", async () => {
