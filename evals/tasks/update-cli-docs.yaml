@@ -1,0 +1,14 @@
+title: Correct the documented serve command
+description: The CLI now uses a serve subcommand. Update only the usage documentation to show the current command.
+acceptance_criteria:
+  - README uses node app.js serve
+  - The removed --serve flag is not documented
+allowed_paths:
+  - README.md
+verification:
+  - executable: node
+    args: [--test, test/documentation.test.js]
+limits:
+  max_iterations: 6
+  max_changed_files: 1
+  timeout_minutes: 1
