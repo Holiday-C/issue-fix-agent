@@ -92,6 +92,25 @@ describe.skipIf(process.platform !== "darwin")("deterministic fixture repair", (
     expect(evidence.result).toContain("Outcome: failed");
     expect(evidence.sourceStatus).toBe("");
   }, 20_000);
+
+  it("verifies a valid candidate while preserving its budget-blocked outcome", async () => {
+    const evidence = await runScenario("budget-stopped", true, {
+      maxIterations: 5,
+      omitEndTurn: true,
+    });
+
+    expect(evidence.outcome).toBe("blocked");
+    expect(evidence.reason).toBe("iteration_budget_exhausted");
+    expect(evidence.agent).toMatchObject({
+      status: "blocked",
+      reason: "iteration_budget_exhausted",
+    });
+    expect(evidence.verification).toMatchObject({
+      verdict: "passed",
+      checks: [{ status: "passed" }],
+    });
+    expect(evidence.patch).toContain("+  return `Hello, ${name}!`;");
+  }, 20_000);
 });
 
 describe("repair runner failure handling", () => {
@@ -136,6 +155,7 @@ describe("repair runner failure handling", () => {
 
 type ScenarioEvidence = Readonly<{
   outcome: RepairRunStatus;
+  reason: string;
   agent: AgentOutcome;
   verification: VerificationReport;
   patch: string;
@@ -148,7 +168,11 @@ type ScenarioEvidence = Readonly<{
   sourceImplementation: string;
 }>;
 
-async function runScenario(runId: string, applyFix: boolean): Promise<ScenarioEvidence> {
+async function runScenario(
+  runId: string,
+  applyFix: boolean,
+  options: Readonly<{ maxIterations?: number; omitEndTurn?: boolean }> = {},
+): Promise<ScenarioEvidence> {
   const testRoot = await createTemporaryDirectory();
   const repository = join(testRoot, "repository");
   const worktrees = join(testRoot, "worktrees");
@@ -156,7 +180,14 @@ async function runScenario(runId: string, applyFix: boolean): Promise<ScenarioEv
   await mkdir(worktrees);
   await initializeRepository(repository);
   const sourceHeadBefore = await git(repository, ["rev-parse", "HEAD"]);
-  const model = new ScriptedModel(applyFix ? successfulScript() : [endTurn("No change needed")]);
+  const successResponses = successfulScript();
+  const model = new ScriptedModel(
+    applyFix
+      ? options.omitEndTurn === true
+        ? successResponses.slice(0, -1)
+        : successResponses
+      : [endTurn("No change needed")],
+  );
   const run = await runRepair({
     repositoryPath: repository,
     taskPath,
@@ -165,7 +196,7 @@ async function runScenario(runId: string, applyFix: boolean): Promise<ScenarioEv
     model,
     budget: new ResourceBudget(
       {
-        maxIterations: 8,
+        maxIterations: options.maxIterations ?? 8,
         maxElapsedMilliseconds: 60_000,
         maxInputTokens: 1,
         maxOutputTokens: 1,
@@ -182,6 +213,7 @@ async function runScenario(runId: string, applyFix: boolean): Promise<ScenarioEv
 
   return Object.freeze({
     outcome: run.status,
+    reason: run.reason,
     agent: run.agent,
     verification: run.verification,
     patch,
