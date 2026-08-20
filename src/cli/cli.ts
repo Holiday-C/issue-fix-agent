@@ -8,6 +8,7 @@ import {
   AnthropicMessagesAdapter,
   type AnthropicModelOptions,
 } from "../model/anthropic-messages-adapter.js";
+import { OpenAICompatibleAdapter, type OpenAIChatOptions } from "../model/openai-chat-adapter.js";
 import type { ModelPort } from "../model/types.js";
 import { PathPolicyConfigurationError } from "../permissions/path-policy.js";
 import { TaskContractError } from "../task/task-contract.js";
@@ -41,14 +42,14 @@ Usage:
 Commands:
   (no command)       Start the interactive repair wizard
   prepare            Validate a task and repository in an isolated worktree
-  run                Run a verified candidate repair with Anthropic
+  run                Run a verified candidate repair with the configured model protocol
 
 Options:
   -h, --help                    Show this help message
   -v, --version                 Show the installed version
       --repo <path>             Target local Git repository
       --issue <path>            YAML task contract
-      --model <id>              Anthropic model ID
+      --model <id>              Provider model ID
       --pricing <rates>         USD per million tokens: input,output,cache-write,cache-read
       --max-model-tokens <n>    Output ceiling for each model request (default: 8192)
       --max-input-tokens <n>    Run input-token ceiling (default: 200000)
@@ -62,6 +63,12 @@ Environment:
   ANTHROPIC_MODEL               Optional interactive model default
   ANTHROPIC_PRICING             Optional interactive pricing default
   ANTHROPIC_THINKING            enabled or disabled (default: disabled)
+  ISSUE_FIX_MODEL_PROTOCOL      anthropic or openai (default: anthropic)
+  OPENAI_BASE_URL               OpenAI-compatible API base URL
+  OPENAI_AUTH_TOKEN             OpenAI-compatible bearer token
+  OPENAI_MODEL                  Optional interactive OpenAI model default
+  OPENAI_PRICING                Optional interactive OpenAI pricing default
+  OPENAI_THINKING               enabled or disabled (omitted: provider default)
 
 Exit codes:
   0 succeeded, 1 failed, 2 usage error, 3 blocked, 130 cancelled
@@ -81,6 +88,7 @@ export type CliDependencies = Readonly<{
   loadTask: typeof loadTaskFile;
   run: typeof runRepair;
   createModel(options: AnthropicModelOptions): ModelPort;
+  createOpenAIModel?(options: OpenAIChatOptions): ModelPort;
   environment: CliEnvironment;
   wizard?: Readonly<{
     isInteractive(): boolean;
@@ -95,6 +103,7 @@ const defaultDependencies: CliDependencies = Object.freeze({
   loadTask: loadTaskFile,
   run: runRepair,
   createModel: (options) => new AnthropicMessagesAdapter(options),
+  createOpenAIModel: (options) => new OpenAICompatibleAdapter(options),
   environment: process.env,
   wizard: Object.freeze({
     isInteractive: () => process.stdin.isTTY === true && process.stderr.isTTY === true,
@@ -289,22 +298,30 @@ async function runInteractiveRepair(
     io.stderr.write("error: interactive terminal required; use `issue-fix run` for automation\n");
     return 2;
   }
-  if (anthropicAuthentication(dependencies.environment) === undefined) {
-    io.stderr.write("error: ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required\n");
+  const protocol = modelProtocol(dependencies.environment);
+  if (protocol === undefined) {
+    io.stderr.write("error: ISSUE_FIX_MODEL_PROTOCOL must be anthropic or openai\n");
+    return 2;
+  }
+  if (
+    (protocol === "anthropic" && anthropicAuthentication(dependencies.environment) === undefined) ||
+    (protocol === "openai" && openAIAuthentication(dependencies.environment) === undefined)
+  ) {
+    io.stderr.write(`error: ${protocol} credentials are required\n`);
     return 3;
   }
 
   const prompt = wizard.createPrompt();
+  const modelDefault =
+    dependencies.environment[protocol === "anthropic" ? "ANTHROPIC_MODEL" : "OPENAI_MODEL"];
+  const pricingDefault =
+    dependencies.environment[protocol === "anthropic" ? "ANTHROPIC_PRICING" : "OPENAI_PRICING"];
   let plan: Awaited<ReturnType<typeof collectWizardPlan>>;
   try {
     plan = await collectWizardPlan(prompt, wizard.discovery, {
       currentDirectory: wizard.currentDirectory(),
-      ...(dependencies.environment["ANTHROPIC_MODEL"] === undefined
-        ? {}
-        : { model: dependencies.environment["ANTHROPIC_MODEL"] }),
-      ...(dependencies.environment["ANTHROPIC_PRICING"] === undefined
-        ? {}
-        : { pricing: dependencies.environment["ANTHROPIC_PRICING"] }),
+      ...(modelDefault === undefined ? {} : { model: modelDefault }),
+      ...(pricingDefault === undefined ? {} : { pricing: pricingDefault }),
     });
   } catch (error: unknown) {
     if (error instanceof WizardInputError) {
@@ -347,15 +364,30 @@ async function executeRepair(
   dependencies: CliDependencies,
   signal?: AbortSignal,
 ): Promise<number> {
-  const authentication = anthropicAuthentication(dependencies.environment);
-  if (authentication === undefined) {
+  const protocol = modelProtocol(dependencies.environment);
+  if (protocol === undefined) {
+    io.stderr.write("error: ISSUE_FIX_MODEL_PROTOCOL must be anthropic or openai\n");
+    return 2;
+  }
+  const thinkingMode = thinkingModeValue(
+    dependencies.environment[protocol === "anthropic" ? "ANTHROPIC_THINKING" : "OPENAI_THINKING"],
+    protocol === "anthropic" ? "disabled" : "provider_default",
+  );
+  if (thinkingMode === undefined) {
+    io.stderr.write(`error: ${protocol} thinking mode must be enabled or disabled\n`);
+    return 2;
+  }
+  const anthropicAuth =
+    protocol === "anthropic" ? anthropicAuthentication(dependencies.environment) : undefined;
+  const openAIAuth =
+    protocol === "openai" ? openAIAuthentication(dependencies.environment) : undefined;
+  if (protocol === "anthropic" && anthropicAuth === undefined) {
     io.stderr.write("error: ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required\n");
     return 3;
   }
-  const thinkingMode = anthropicThinkingMode(dependencies.environment);
-  if (thinkingMode === undefined) {
-    io.stderr.write("error: ANTHROPIC_THINKING must be enabled or disabled\n");
-    return 2;
+  if (protocol === "openai" && openAIAuth === undefined) {
+    io.stderr.write("error: OPENAI_BASE_URL and OPENAI_AUTH_TOKEN are required\n");
+    return 3;
   }
 
   try {
@@ -371,13 +403,32 @@ async function executeRepair(
       },
       configuration.pricing,
     );
-    const model = dependencies.createModel({
-      ...authentication,
-      thinkingMode,
-      model: configuration.modelId,
-      maxTokens: configuration.maxModelTokens,
-      timeoutMilliseconds: Math.min(maximumElapsed, 120_000),
-    });
+    const timeoutMilliseconds = Math.min(maximumElapsed, 120_000);
+    let model: ModelPort;
+    if (protocol === "anthropic" && anthropicAuth !== undefined) {
+      model = dependencies.createModel({
+        ...anthropicAuth,
+        thinkingMode: thinkingMode === "provider_default" ? "disabled" : thinkingMode,
+        model: configuration.modelId,
+        maxTokens: configuration.maxModelTokens,
+        timeoutMilliseconds,
+      });
+    } else if (
+      protocol === "openai" &&
+      openAIAuth !== undefined &&
+      dependencies.createOpenAIModel !== undefined
+    ) {
+      model = dependencies.createOpenAIModel({
+        ...openAIAuth,
+        ...(thinkingMode === "provider_default" ? {} : { thinkingMode }),
+        model: configuration.modelId,
+        maxTokens: configuration.maxModelTokens,
+        timeoutMilliseconds,
+      });
+    } else {
+      io.stderr.write("error: selected model protocol is unavailable\n");
+      return 1;
+    }
     const result = await dependencies.run({
       repositoryPath: configuration.repositoryPath,
       taskPath: loaded.taskPath,
@@ -404,10 +455,35 @@ async function executeRepair(
   }
 }
 
-function anthropicThinkingMode(environment: CliEnvironment): "enabled" | "disabled" | undefined {
-  const value = environment["ANTHROPIC_THINKING"]?.trim().toLocaleLowerCase("en-US");
-  if (value === undefined || value.length === 0) return "disabled";
+function thinkingModeValue(
+  source: string | undefined,
+  fallback: "disabled" | "provider_default",
+): "enabled" | "disabled" | "provider_default" | undefined {
+  const value = source?.trim().toLocaleLowerCase("en-US");
+  if (value === undefined || value.length === 0) return fallback;
   return value === "enabled" || value === "disabled" ? value : undefined;
+}
+
+function modelProtocol(environment: CliEnvironment): "anthropic" | "openai" | undefined {
+  const value = environment["ISSUE_FIX_MODEL_PROTOCOL"]?.trim().toLocaleLowerCase("en-US");
+  if (value === undefined || value.length === 0) return "anthropic";
+  return value === "anthropic" || value === "openai" ? value : undefined;
+}
+
+function openAIAuthentication(
+  environment: CliEnvironment,
+): Readonly<{ baseURL: string; authToken: string }> | undefined {
+  const baseURL = environment["OPENAI_BASE_URL"]?.trim();
+  const authToken = environment["OPENAI_AUTH_TOKEN"]?.trim();
+  if (
+    baseURL === undefined ||
+    baseURL.length === 0 ||
+    authToken === undefined ||
+    authToken.length === 0
+  ) {
+    return undefined;
+  }
+  return Object.freeze({ baseURL, authToken });
 }
 
 function anthropicAuthentication(
