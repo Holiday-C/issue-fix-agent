@@ -23,3 +23,6 @@ The aggregate validates every record at runtime, rejects duplicate task IDs and
 inconsistent success fields, then emits order-independent counts, rates, and
 resource totals. The evaluator must determine `regressionFree` independently;
 it is not inferred from the model's claim or from task resolution.
+
+Deterministic serialization, redaction, and baseline comparison are documented
+in [`reporting.md`](./reporting.md).
