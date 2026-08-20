@@ -1,0 +1,7 @@
+version: 1
+tasks:
+  - id: greeting-typo
+    fixture: fixtures/greeting
+    task: tasks/fix-greeting.yaml
+    expected_changed_paths:
+      - src/greeting.js
