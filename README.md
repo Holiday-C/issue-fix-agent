@@ -6,7 +6,7 @@
 
 > 给定一个描述清楚的 Issue，Agent 能否产出一份通过自动化检查、方便人工审查的候选修复？
 
-Milestone 0–2 已完成，项目当前进入 Milestone 3（Real Model MVP）。现有代码已经具备隔离 worktree、受控仓库工具、原生命令沙箱、独立验证、运行产物、资源预算和 Anthropic Messages 适配器。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
+Milestone 0–3 已完成，首个 Real Model MVP 已可使用，Milestone 4（Evaluation and Reliability）处于规划阶段。现有代码已经具备隔离 worktree、受控仓库工具、原生命令沙箱、独立验证、运行产物、资源预算、交互式向导，以及 Anthropic Messages 和 OpenAI Chat Completions 两种兼容适配器。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
 
 ## 快速开始
 
@@ -57,7 +57,7 @@ npm run dev
 
 OpenAI adapter 会请求 `<OPENAI_BASE_URL>/chat/completions`。协议必须显式选择，不会根据 URL 自动判断。
 
-可以通过 `ANTHROPIC_MODEL` 和 `ANTHROPIC_PRICING` 为向导提供模型与价格默认值。价格顺序是每百万 Token 的 input、output、cache-write、cache-read 美元单价。
+可以通过对应协议的 `ANTHROPIC_MODEL`/`ANTHROPIC_PRICING` 或 `OPENAI_MODEL`/`OPENAI_PRICING` 为向导提供模型与价格默认值。价格顺序是每百万 Token 的 input、output、cache-write、cache-read 美元单价。
 
 高级配置入口适合自动化和复现。模型 ID 与价格必须显式提供，避免内置价格随供应商变化而失真：
 

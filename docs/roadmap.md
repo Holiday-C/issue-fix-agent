@@ -160,12 +160,12 @@ a paid model call.
 
 ## M3 — Real Model MVP
 
-**Status:** In progress
+**Status:** Complete
 
 ### Goal
 
-Run the deterministic repair harness with Anthropic Messages API and produce
-the first usable local candidate repair.
+Run the deterministic repair harness with a configured real-model provider and
+produce the first usable local candidate repair.
 
 ### Scope
 
@@ -206,6 +206,16 @@ the first usable local candidate repair.
 - Paid runs are manual and never part of `npm run verify`.
 
 M3 is the first usable MVP.
+
+### Validation result
+
+- Three consecutive Anthropic Messages fixture runs succeeded with independent
+  verification and identical scoped patches.
+- All source checkouts remained clean and all credential scans passed.
+- Total measured usage was 46,944 input tokens including cache and 2,634 output
+  tokens, with an estimated cost of USD 0.00293268 under the configured prices.
+- Anthropic Messages was validated live; the separate OpenAI-compatible adapter
+  is covered by deterministic fake-client tests and explicit protocol routing.
 
 ## M4 — Evaluation and Reliability
 
