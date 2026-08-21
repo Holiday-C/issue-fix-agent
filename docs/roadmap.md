@@ -6,16 +6,10 @@ modules.
 
 ## Current Status
 
-Milestone 0, **Agent Kernel**, and Milestone 1, **Safe Workspace**, are complete.
-The project can validate a bounded YAML task, prepare an isolated Git worktree,
-and compose a canonical path policy without calling a model or running
-task-configured commands.
-
-The current milestone is Milestone 2, **Deterministic Repair**.
-
-The project is not yet able to repair an Issue. There are no repository file
-tools, command execution policy, verification runner, run artifacts, or model
-adapter.
+Milestones 0 through 4 are complete. The project can run a real model through
+an isolated, permission-controlled repair loop and compare its behavior across
+ten deterministic evaluation tasks. The next milestone is Milestone 5,
+**Dogfooding**.
 
 ## Milestone Rules
 
@@ -219,7 +213,7 @@ M3 is the first usable MVP.
 
 ## M4 — Evaluation and Reliability
 
-**Status:** Planned
+**Status:** Complete
 
 ### Goal
 
@@ -243,6 +237,18 @@ demos.
 - No credential disclosure or worktree escape occurs.
 - Every failure has a recorded category and reproducible task.
 - Paid evaluation is explicitly triggered, never scheduled.
+
+### Evidence
+
+- The fixed suite contains seven repairable tasks and three reproducible safety
+  negatives.
+- The accepted baseline resolved 7/10 tasks with 100 percent regression and
+  scope compliance.
+- All source checkout and credential checks passed.
+- Exact text replacement and file-path search were added only after the first
+  baseline exposed repeated patch and search interface failures.
+- The redacted baseline is recorded in
+  [`docs/evaluation/baselines/m4-deepseek-v4-flash.md`](./evaluation/baselines/m4-deepseek-v4-flash.md).
 
 ## M5 — Dogfooding
 
