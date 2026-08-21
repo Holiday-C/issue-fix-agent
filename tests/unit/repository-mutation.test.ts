@@ -134,6 +134,25 @@ diff --git a/README.md b/README.md
     );
   });
 
+  it("returns a bounded Git diagnostic for an invalid patch", async () => {
+    const { tools } = await createTools();
+
+    const result = await execute(tools, "apply_patch", {
+      patch: "*** Begin Patch\n*** End Patch",
+    });
+
+    expect(result.value).toMatchObject({ ok: false, error: { code: "invalid_patch" } });
+    const error = result.value["error"];
+    if (typeof error !== "object" || error === null || Array.isArray(error)) {
+      throw new TypeError("Expected a structured tool error");
+    }
+    const detail = (error as Readonly<Record<string, unknown>>)["detail"];
+    expect(typeof detail).toBe("string");
+    expect(
+      typeof detail === "string" ? detail.length : Number.POSITIVE_INFINITY,
+    ).toBeLessThanOrEqual(200);
+  });
+
   it("keeps repository metadata and credential paths protected from broad task scopes", async () => {
     const root = await createRepository();
     const policy = await PathPolicy.create(root, ["**"]);

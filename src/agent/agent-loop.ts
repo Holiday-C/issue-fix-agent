@@ -103,7 +103,11 @@ export async function runAgentLoop(
         !(await recordTrace(dependencies.trace, {
           type: "tool_completed",
           iteration,
-          metadata: { tool: call.name, isError: result.isError },
+          metadata: {
+            tool: call.name,
+            isError: result.isError,
+            ...(result.isError ? { errorCode: toolErrorCode(result.content) } : {}),
+          },
         }))
       ) {
         return traceFailure(messages, iteration, dependencies.budget.summary());
@@ -121,6 +125,19 @@ export async function runAgentLoop(
     dependencies,
     iteration,
   );
+}
+
+function toolErrorCode(content: string): string {
+  try {
+    const value: unknown = JSON.parse(content);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return "unknown";
+    const error = (value as Readonly<Record<string, unknown>>)["error"];
+    if (typeof error !== "object" || error === null || Array.isArray(error)) return "unknown";
+    const code = (error as Readonly<Record<string, unknown>>)["code"];
+    return typeof code === "string" && /^[a-z0-9_]{1,100}$/u.test(code) ? code : "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 async function stop(

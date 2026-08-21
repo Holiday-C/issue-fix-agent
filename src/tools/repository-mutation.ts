@@ -309,8 +309,18 @@ async function readUntrackedPaths(worktreeRoot: string): Promise<string[]> {
 
 function assertGitSuccess(result: ProcessResult, code: string): void {
   if (result.spawnFailed || result.timedOut || result.exitCode !== 0) {
-    throw new RepositoryMutationError(code);
+    const detail = boundedGitError(result.stderr);
+    throw new RepositoryMutationError(code, detail.length === 0 ? {} : { detail });
   }
+}
+
+function boundedGitError(stderr: Buffer): string {
+  return stderr
+    .toString("utf8")
+    .replace(/[^\x20-\x7e]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 200);
 }
 
 async function runGit(
