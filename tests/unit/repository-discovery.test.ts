@@ -70,6 +70,20 @@ describe("repository discovery tools", () => {
     ]);
   });
 
+  it("searches a single file path without requiring a directory", async () => {
+    const tools = await createTools();
+
+    const result = await execute(tools, "search_code", {
+      path: "src/a.ts",
+      query: "NEEDLE",
+    });
+
+    expect(result.isError).toBe(false);
+    expect(result.value["entries"]).toEqual([
+      expect.objectContaining({ path: "src/a.ts", line: 1, column: 8 }),
+    ]);
+  });
+
   it("reads UTF-8 files in bounded continuation segments", async () => {
     const tools = await createTools();
     const first = await execute(tools, "read_file", {

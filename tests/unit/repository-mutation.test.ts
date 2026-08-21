@@ -52,6 +52,58 @@ describe("repository mutation tools", () => {
     expect(diff.value["diff"]).toContain("+export const value = 2;");
   });
 
+  it("replaces one exact text occurrence through the existing patch boundary", async () => {
+    const { root, tools } = await createTools();
+
+    const replaced = await execute(tools, "replace_text", {
+      path: "src/value.ts",
+      oldText: "value = 1",
+      newText: "value = 2",
+    });
+
+    expect(replaced).toMatchObject({
+      isError: false,
+      value: { ok: true, filesChanged: 1, paths: ["src/value.ts"] },
+    });
+    await expect(readFile(join(root, "src/value.ts"), "utf8")).resolves.toBe(
+      "export const value = 2;\n",
+    );
+  });
+
+  it("rejects ambiguous or unauthorized exact replacements", async () => {
+    const { root, tools } = await createTools();
+    await writeFile(join(root, "src/value.ts"), "same same\n", "utf8");
+
+    await expectError(
+      tools,
+      "replace_text",
+      { path: "src/value.ts", oldText: "same", newText: "new" },
+      "text_not_unique",
+    );
+    await expectError(
+      tools,
+      "replace_text",
+      { path: "README.md", oldText: "Fixture", newText: "Changed" },
+      "path_denied",
+    );
+    await expect(readFile(join(root, "src/value.ts"), "utf8")).resolves.toBe("same same\n");
+  });
+
+  it("replaces text beyond one read segment while keeping the patch bounded", async () => {
+    const { root, tools } = await createTools();
+    const source = `${Array.from({ length: 800 }, (_, index) => `line ${String(index).padStart(3, "0")}: catalog value`).join("\n")}\nomega: Oemga\n`;
+    await writeFile(join(root, "src/value.ts"), source, "utf8");
+
+    const result = await execute(tools, "replace_text", {
+      path: "src/value.ts",
+      oldText: "omega: Oemga",
+      newText: "omega: Omega",
+    });
+
+    expect(result.isError).toBe(false);
+    await expect(readFile(join(root, "src/value.ts"), "utf8")).resolves.toContain("omega: Omega");
+  });
+
   it("includes an authorized new file in the diff", async () => {
     const { tools } = await createTools();
     const patch = `diff --git a/src/new.ts b/src/new.ts

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { open } from "node:fs/promises";
 
 import { z } from "zod";
 
@@ -10,6 +11,7 @@ const MAX_DIFF_BYTES = 48 * 1024;
 const MAX_GIT_METADATA_BYTES = 64 * 1024;
 const MAX_PATCH_FILES = 20;
 const MAX_DIFF_FILES = 50;
+const MAX_REPLACE_FILE_BYTES = 24 * 1024;
 const GIT_TIMEOUT_MILLISECONDS = 15_000;
 const PROTECTED_SEGMENTS = new Set([".aws", ".git", ".gnupg", ".issue-fix", ".ssh"]);
 const PROTECTED_NAMES = new Set([".netrc", ".npmrc", ".pypirc", "credentials"]);
@@ -17,6 +19,15 @@ const PROTECTED_EXTENSIONS = [".key", ".p12", ".pem", ".pfx"];
 
 const applyPatchInput = z.strictObject({
   patch: z.string().min(1).max(MAX_PATCH_BYTES),
+});
+
+const replaceTextInput = z.strictObject({
+  path: z.string().min(1).max(500),
+  oldText: z
+    .string()
+    .min(1)
+    .max(16 * 1024),
+  newText: z.string().max(16 * 1024),
 });
 
 const gitDiffInput = z.strictObject({
@@ -52,12 +63,88 @@ export function createRepositoryMutationTools(pathPolicy: PathPolicy): readonly 
       (input) => applyPatch(pathPolicy, input),
     ),
     createExecutor(
+      "replace_text",
+      "Replace one exact, unique text occurrence in an existing UTF-8 file. Prefer this for small edits when unified diff hunk formatting is unnecessary.",
+      replaceTextInput,
+      (input) => replaceText(pathPolicy, input),
+    ),
+    createExecutor(
       "git_diff",
       "Return a bounded worktree diff with changed paths and statistics.",
       gitDiffInput,
       (input) => captureGitDiff(pathPolicy, input),
     ),
   ]);
+}
+
+async function replaceText(
+  pathPolicy: PathPolicy,
+  input: z.output<typeof replaceTextInput>,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (isProtectedPath(input.path)) throw new RepositoryMutationError("protected_path");
+  if (!/^[A-Za-z0-9._/-]+$/u.test(input.path)) {
+    throw new RepositoryMutationError("unsupported_path");
+  }
+  const decision = await pathPolicy.authorize({ operation: "write", path: input.path });
+  if (!decision.allowed) {
+    throw new RepositoryMutationError("path_denied", {
+      path: input.path,
+      reason: decision.reason,
+    });
+  }
+  if (decision.relativePath !== input.path) {
+    throw new RepositoryMutationError("symlink_path_denied", { path: input.path });
+  }
+
+  const source = await readSmallTextFile(decision.canonicalPath);
+  const first = source.indexOf(input.oldText);
+  if (first === -1) throw new RepositoryMutationError("text_not_found");
+  if (source.indexOf(input.oldText, first + input.oldText.length) !== -1) {
+    throw new RepositoryMutationError("text_not_unique");
+  }
+  const updated = `${source.slice(0, first)}${input.newText}${source.slice(first + input.oldText.length)}`;
+  if (!source.endsWith("\n") || !updated.endsWith("\n")) {
+    throw new RepositoryMutationError("unsupported_text_file");
+  }
+
+  return applyPatch(pathPolicy, { patch: wholeFilePatch(input.path, source, updated) });
+}
+
+async function readSmallTextFile(path: string): Promise<string> {
+  const handle = await open(path, "r");
+  try {
+    const buffer = Buffer.alloc(MAX_REPLACE_FILE_BYTES + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    if (offset > MAX_REPLACE_FILE_BYTES) {
+      throw new RepositoryMutationError("replace_file_too_large");
+    }
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, offset));
+    } catch {
+      throw new RepositoryMutationError("unsupported_text_file");
+    }
+  } finally {
+    await handle.close();
+  }
+}
+
+function wholeFilePatch(path: string, source: string, updated: string): string {
+  const before = source.slice(0, -1).split("\n");
+  const after = updated.slice(0, -1).split("\n");
+  return [
+    `diff --git a/${path} b/${path}`,
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    `@@ -1,${String(before.length)} +1,${String(after.length)} @@`,
+    ...before.map((line) => `-${line}`),
+    ...after.map((line) => `+${line}`),
+    "",
+  ].join("\n");
 }
 
 function createExecutor<Schema extends z.ZodType>(
