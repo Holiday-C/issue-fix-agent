@@ -22,6 +22,15 @@ afterEach(async () => {
 });
 
 describe("repository mutation tools", () => {
+  it("describes the exact patch format exposed to models", async () => {
+    const { tools } = await createTools();
+    const applyPatch = tools.find((tool) => tool.definition.name === "apply_patch");
+
+    expect(applyPatch?.definition.description).toContain("diff --git");
+    expect(applyPatch?.definition.description).toContain("--- a/path");
+    expect(applyPatch?.definition.description).toContain("*** Begin Patch are invalid");
+  });
+
   it("applies an authorized text patch and returns its bounded diff", async () => {
     const { root, tools } = await createTools();
     const patch = modificationPatch("export const value = 1;", "export const value = 2;");
@@ -41,6 +50,58 @@ describe("repository mutation tools", () => {
       truncated: false,
     });
     expect(diff.value["diff"]).toContain("+export const value = 2;");
+  });
+
+  it("replaces one exact text occurrence through the existing patch boundary", async () => {
+    const { root, tools } = await createTools();
+
+    const replaced = await execute(tools, "replace_text", {
+      path: "src/value.ts",
+      oldText: "value = 1",
+      newText: "value = 2",
+    });
+
+    expect(replaced).toMatchObject({
+      isError: false,
+      value: { ok: true, filesChanged: 1, paths: ["src/value.ts"] },
+    });
+    await expect(readFile(join(root, "src/value.ts"), "utf8")).resolves.toBe(
+      "export const value = 2;\n",
+    );
+  });
+
+  it("rejects ambiguous or unauthorized exact replacements", async () => {
+    const { root, tools } = await createTools();
+    await writeFile(join(root, "src/value.ts"), "same same\n", "utf8");
+
+    await expectError(
+      tools,
+      "replace_text",
+      { path: "src/value.ts", oldText: "same", newText: "new" },
+      "text_not_unique",
+    );
+    await expectError(
+      tools,
+      "replace_text",
+      { path: "README.md", oldText: "Fixture", newText: "Changed" },
+      "path_denied",
+    );
+    await expect(readFile(join(root, "src/value.ts"), "utf8")).resolves.toBe("same same\n");
+  });
+
+  it("replaces text beyond one read segment while keeping the patch bounded", async () => {
+    const { root, tools } = await createTools();
+    const source = `${Array.from({ length: 800 }, (_, index) => `line ${String(index).padStart(3, "0")}: catalog value`).join("\n")}\nomega: Oemga\n`;
+    await writeFile(join(root, "src/value.ts"), source, "utf8");
+
+    const result = await execute(tools, "replace_text", {
+      path: "src/value.ts",
+      oldText: "omega: Oemga",
+      newText: "omega: Omega",
+    });
+
+    expect(result.isError).toBe(false);
+    await expect(readFile(join(root, "src/value.ts"), "utf8")).resolves.toContain("omega: Omega");
   });
 
   it("includes an authorized new file in the diff", async () => {
@@ -123,6 +184,25 @@ diff --git a/README.md b/README.md
       { patch: modificationPatch(), extra: true },
       "invalid_arguments",
     );
+  });
+
+  it("returns a bounded Git diagnostic for an invalid patch", async () => {
+    const { tools } = await createTools();
+
+    const result = await execute(tools, "apply_patch", {
+      patch: "*** Begin Patch\n*** End Patch",
+    });
+
+    expect(result.value).toMatchObject({ ok: false, error: { code: "invalid_patch" } });
+    const error = result.value["error"];
+    if (typeof error !== "object" || error === null || Array.isArray(error)) {
+      throw new TypeError("Expected a structured tool error");
+    }
+    const detail = (error as Readonly<Record<string, unknown>>)["detail"];
+    expect(typeof detail).toBe("string");
+    expect(
+      typeof detail === "string" ? detail.length : Number.POSITIVE_INFINITY,
+    ).toBeLessThanOrEqual(200);
   });
 
   it("keeps repository metadata and credential paths protected from broad task scopes", async () => {

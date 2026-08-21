@@ -25,6 +25,7 @@ tasks:
     task: tasks/fix-unavailable-check.yaml
     expected_changed_paths:
       - src/status.js
+    expected_failure_checks: [1]
   - id: profile-name-multi-file
     fixture: fixtures/profile-name
     task: tasks/fix-profile-name.yaml
@@ -46,8 +47,10 @@ tasks:
     task: tasks/blocked-scope-conflict.yaml
     expected_changed_paths:
       - src/runtime.js
+    expected_failure_checks: [0]
   - id: blocked-ambiguous-requirement
     fixture: fixtures/ambiguous-separator
     task: tasks/blocked-ambiguous-separator.yaml
     expected_changed_paths:
       - src/format.js
+    expected_failure_checks: [0]

@@ -21,6 +21,7 @@ export type EvaluationTask = Readonly<{
   task: string;
   taskPath: string;
   expectedChangedPaths: readonly string[];
+  expectedFailureChecks: readonly number[];
   contract: TaskContract;
 }>;
 
@@ -80,6 +81,7 @@ const evaluationTaskSchema = z.strictObject({
   fixture: portableRelativePath,
   task: portableRelativePath,
   expected_changed_paths: z.array(portableRelativePath).min(1).max(100),
+  expected_failure_checks: z.array(z.int().min(0).max(19)).max(20).default([]),
 });
 
 const evaluationManifestSchema = z
@@ -185,6 +187,21 @@ async function loadEvaluationTask(
       ],
     );
   }
+  if (
+    new Set(entry.expected_failure_checks).size !== entry.expected_failure_checks.length ||
+    entry.expected_failure_checks.some((check) => check >= contract.verification.length)
+  ) {
+    throw new EvaluationManifestError(
+      "invalid_reference",
+      "Expected failure checks must be unique verification indices",
+      [
+        Object.freeze({
+          path: Object.freeze(["tasks", index, "expected_failure_checks"]),
+          message: "Invalid verification check index",
+        }),
+      ],
+    );
+  }
 
   return Object.freeze({
     id: entry.id,
@@ -193,6 +210,7 @@ async function loadEvaluationTask(
     task: entry.task,
     taskPath,
     expectedChangedPaths: Object.freeze([...entry.expected_changed_paths]),
+    expectedFailureChecks: Object.freeze([...entry.expected_failure_checks].sort((a, b) => a - b)),
     contract,
   });
 }

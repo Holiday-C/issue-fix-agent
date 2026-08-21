@@ -6,7 +6,7 @@
 
 > 给定一个描述清楚的 Issue，Agent 能否产出一份通过自动化检查、方便人工审查的候选修复？
 
-Milestone 0–3 已完成，首个 Real Model MVP 已可使用，Milestone 4（Evaluation and Reliability）处于规划阶段。现有代码已经具备隔离 worktree、受控仓库工具、原生命令沙箱、独立验证、运行产物、资源预算、交互式向导，以及 Anthropic Messages 和 OpenAI Chat Completions 两种兼容适配器。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
+Milestone 0–4 已完成，首个 Real Model MVP 和十任务可靠性 baseline 已可使用。现有代码已经具备隔离 worktree、受控仓库工具、原生命令沙箱、独立验证、运行产物、资源预算、交互式向导，以及 Anthropic Messages 和 OpenAI Chat Completions 两种兼容适配器。第一版使用 TypeScript，核心保持为直接的模型—工具循环，不依赖 LangChain 或 LangGraph。
 
 ## 快速开始
 
@@ -74,6 +74,10 @@ npm run dev -- run \
 运行过程只显示公开生命周期和工具进度；最终输出包含状态、产物目录、修改范围以及 Token/成本摘要。非交互终端必须使用配置化 `run` 入口。
 
 真实模型的三次固定 fixture 验收是显式付费操作，不会进入常规测试或 GitHub Actions。运行方法和审查清单见 [`docs/evaluation/m3-live.md`](./docs/evaluation/m3-live.md)。
+
+M4 的十任务 baseline 同样只允许手动付费运行，并使用独立授权开关和
+suite 总成本上限。配置与退出标准见
+[`docs/evaluation/m4-live.md`](./docs/evaluation/m4-live.md)。
 
 项目的工程约定在以下文档中：
 
@@ -224,14 +228,15 @@ limits:
 
 MVP 只提供少量、高质量工具：
 
-| 工具          | 作用                      | 默认权限                 |
-| ------------- | ------------------------- | ------------------------ |
-| `list_files`  | 查看有限深度的目录结构    | 只读、自动允许           |
-| `search_code` | 按文本或模式搜索代码      | 只读、自动允许           |
-| `read_file`   | 分段读取文件              | 只读、自动允许           |
-| `apply_patch` | 以可审查的 patch 修改文件 | 仅限 worktree 和允许路径 |
-| `run_command` | 执行测试和项目命令        | 受 allowlist 与沙箱限制  |
-| `git_diff`    | 获取当前改动及统计信息    | 只读、自动允许           |
+| 工具           | 作用                      | 默认权限                 |
+| -------------- | ------------------------- | ------------------------ |
+| `list_files`   | 查看有限深度的目录结构    | 只读、自动允许           |
+| `search_code`  | 按文本或模式搜索代码      | 只读、自动允许           |
+| `read_file`    | 分段读取文件              | 只读、自动允许           |
+| `apply_patch`  | 以可审查的 patch 修改文件 | 仅限 worktree 和允许路径 |
+| `replace_text` | 精确替换唯一文本片段      | 仅限 worktree 和允许路径 |
+| `run_command`  | 执行测试和项目命令        | 受 allowlist 与沙箱限制  |
+| `git_diff`     | 获取当前改动及统计信息    | 只读、自动允许           |
 
 工具应该返回紧凑、结构化、可操作的结果。超长输出必须截断并提供继续读取的方法，避免一次工具调用污染整个上下文。
 
@@ -375,12 +380,14 @@ LLM 输出始终被视为不可信输入。任何工具调用在执行之前都�
 | ------------------------------- | ------ | -------------------------------------------------- |
 | M0 — Agent Kernel               | 完成   | Fake model 可以驱动最小工具循环并确定性停止        |
 | M1 — Safe Workspace             | 完成   | 仓库和任务被验证，并生成安全的隔离执行上下文       |
-| M2 — Deterministic Repair       | 进行中 | Scripted model 在 fixture 中完成一次验证通过的修复 |
-| M3 — Real Model MVP             | 计划中 | Anthropic 驱动第一个可用的本地候选修复             |
-| M4 — Evaluation and Reliability | 计划中 | 10 个固定任务形成成功率、安全和成本基线            |
+| M2 — Deterministic Repair       | 完成   | Scripted model 在 fixture 中完成一次验证通过的修复 |
+| M3 — Real Model MVP             | 完成   | Anthropic 驱动第一个可用的本地候选修复             |
+| M4 — Evaluation and Reliability | 完成   | 10 个固定任务形成成功率、安全和成本基线            |
 | M5 — Dogfooding                 | 计划中 | 连续 3 个真实小型修复通过人工审查                  |
 
-详细范围、非目标和退出标准见 [`docs/roadmap.md`](./docs/roadmap.md)。当前执行任务见 [M2 — Deterministic Repair](https://github.com/Holiday-C/issue-fix-agent/milestone/2)。
+详细范围、非目标和退出标准见 [`docs/roadmap.md`](./docs/roadmap.md)。M4
+脱敏结果见
+[`docs/evaluation/baselines/m4-deepseek-v4-flash.md`](./docs/evaluation/baselines/m4-deepseek-v4-flash.md)。
 
 ## 有意推迟的能力
 

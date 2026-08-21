@@ -124,6 +124,47 @@ describe("runAgentLoop", () => {
     });
   });
 
+  it("records only a bounded structured tool error code", async () => {
+    const toolCall = { type: "tool_use" as const, id: "call-1", name: "edit", input: {} };
+    const trace = new RecordingTrace();
+    await runAgentLoop(
+      { system: "Test", messages: [{ role: "user", content: [{ type: "text", text: "Fix" }] }] },
+      {
+        model: new SequenceModel([
+          {
+            message: { role: "assistant", content: [toolCall] },
+            stopReason: "tool_use",
+            toolCalls: [toolCall],
+            model: "test-model",
+            usage: emptyUsage,
+          },
+        ]),
+        tools: new ToolRegistry([
+          {
+            definition: { name: "edit", description: "Edit", inputSchema: {} },
+            execute: async () =>
+              Promise.resolve({
+                content: JSON.stringify({
+                  ok: false,
+                  error: { code: "invalid_patch", detail: "private output" },
+                }),
+                isError: true,
+              }),
+          },
+        ]),
+        budget: createBudget(1),
+        trace,
+      },
+    );
+
+    expect(trace.events).toContainEqual({
+      type: "tool_completed",
+      iteration: 1,
+      metadata: { tool: "edit", isError: true, errorCode: "invalid_patch" },
+    });
+    expect(JSON.stringify(trace.events)).not.toContain("private output");
+  });
+
   it("stops when the iteration budget is exhausted", async () => {
     const toolCall = { type: "tool_use" as const, id: "call-1", name: "missing", input: {} };
     const model = new SequenceModel([

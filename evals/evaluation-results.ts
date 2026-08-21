@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { RESOURCE_BUDGET_CEILINGS } from "../src/agent/budget.js";
+import type { ResourceUsageSummary } from "../src/agent/budget.js";
 import type { RepairRunResult } from "../src/cli/run-repair.js";
+import type { VerificationCheckStatus } from "../src/verification/verification-runner.js";
 
 export const EVALUATION_FAILURE_CATEGORIES = [
   "task_failure",
@@ -73,6 +75,18 @@ export type EvaluationSummary = Readonly<{
 export type EvaluationObservation = Readonly<{
   regressionFree: boolean;
   toolErrors: number;
+}>;
+
+export type EvaluationRun = Readonly<{
+  status: RepairRunResult["status"];
+  reason: string;
+  verification: Readonly<{
+    verdict: "passed" | "failed";
+    checks: readonly Readonly<{ index: number; status: VerificationCheckStatus }>[];
+  }> | null;
+  usage: ResourceUsageSummary;
+  changedFiles: number;
+  scopeCompliant: boolean;
 }>;
 
 const boundedText = (maximum: number): z.ZodString =>
@@ -162,7 +176,7 @@ const resultListSchema = z.array(resultSchema).min(1).max(20);
 
 export function createEvaluationResult(
   taskId: string,
-  run: RepairRunResult,
+  run: EvaluationRun,
   observation: EvaluationObservation,
 ): EvaluationResult {
   const resolved = run.status === "succeeded" || run.verification?.verdict === "passed";
@@ -336,7 +350,7 @@ export function validateEvaluationResults(source: unknown): readonly EvaluationR
   return Object.freeze(parsed);
 }
 
-function failureEvidence(run: RepairRunResult): readonly string[] {
+function failureEvidence(run: EvaluationRun): readonly string[] {
   const checks =
     run.verification?.checks.map(
       (check) => `verification-check:${String(check.index)}:${check.status}`,

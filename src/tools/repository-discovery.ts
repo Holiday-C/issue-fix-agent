@@ -169,13 +169,21 @@ async function searchCode(
   input: z.output<typeof searchCodeInput>,
 ): Promise<Readonly<Record<string, unknown>>> {
   const start = await authorizeRead(pathPolicy, input.path);
-  if (!(await stat(start.canonicalPath)).isDirectory()) {
-    throw new RepositoryReadError("not_directory");
-  }
-
-  const files: string[] = [];
+  const startMetadata = await stat(start.canonicalPath);
+  const files: string[] = startMetadata.isFile() ? [start.relativePath] : [];
   const stats: TraversalStats = { omitted: 0, fileLimitReached: false };
-  await collectFiles(pathPolicy, start.relativePath, input.maxDepth, files, stats, input.maxFiles);
+  if (startMetadata.isDirectory()) {
+    await collectFiles(
+      pathPolicy,
+      start.relativePath,
+      input.maxDepth,
+      files,
+      stats,
+      input.maxFiles,
+    );
+  } else if (!startMetadata.isFile()) {
+    throw new RepositoryReadError("invalid_search_path");
+  }
 
   const matches: SearchMatch[] = [];
   let totalMatchesSeen = 0;
